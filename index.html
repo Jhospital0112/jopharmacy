@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Jordan Hospital Pharmacy - Controlled Drugs Management</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <div class="app-header">
+    <div class="app-title">JORDAN HOSPITAL PHARMACY · CONTROLLED DRUGS MANAGEMENT</div>
+  </div>
+
+  <section id="loginScreen" class="page">
+    <div class="login-shell">
+      <div class="section-caption">Select account</div>
+      <div class="login-grid">
+        <button class="login-card" data-role="ADMIN">
+          <span class="login-icon">👑</span>
+          <span class="login-name">Admin</span>
+          <span class="login-desc">Full access to dashboard, inventory, reports, audit, pharmacists, shipments and settings.</span>
+        </button>
+        <button class="login-card" data-role="IN_PATIENT_USER">
+          <span class="login-icon">🏥</span>
+          <span class="login-name">In-Patient Pharmacy</span>
+          <span class="login-desc">Prescription registration, returns, inventory view and transaction tracking for in-patient pharmacy.</span>
+        </button>
+        <button class="login-card" data-role="OUT_PATIENT_USER">
+          <span class="login-icon">💊</span>
+          <span class="login-name">Out-Patient Pharmacy</span>
+          <span class="login-desc">Prescription registration, returns, inventory view and transaction tracking for out-patient pharmacy.</span>
+        </button>
+        <button class="login-card" data-role="MEDICAL_CENTER_USER">
+          <span class="login-icon">🩺</span>
+          <span class="login-name">Medical Center Pharmacy</span>
+          <span class="login-desc">Prescription registration, returns, inventory view and transaction tracking for medical center pharmacy.</span>
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <section id="appShell" class="page hidden">
+    <div class="main-nav-card">
+      <div class="nav-label">MAIN MENU</div>
+      <div class="nav-links">
+        <button class="nav-link active" data-page="dashboard">⌂ Dashboard</button>
+        <button class="nav-link" data-page="inventory">◫ Inventory</button>
+        <button class="nav-link admin-only" data-page="shipments">⬇ Shipments</button>
+        <button class="nav-link" data-page="transactions">▣ Transactions</button>
+        <button class="nav-link admin-only" data-page="reports">▣ Reports</button>
+        <button class="nav-link admin-only" data-page="audit">✓ Audit</button>
+        <button class="nav-link admin-only" data-page="settings">⚙ Settings</button>
+      </div>
+      <div class="nav-actions">
+        <div class="user-menu-wrap">
+          <button id="userMenuBtn" class="soft-btn menu-trigger">Account ▾</button>
+          <div id="userMenuDropdown" class="user-menu-dropdown hidden">
+            <button id="changePasswordBtn" class="menu-item-btn">Change Password</button>
+            <button id="themeToggle" class="menu-item-btn">Theme</button>
+            <button id="logoutBtn" class="menu-item-btn danger-item">Logout</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="page-dashboard" class="page-block">
+      <div class="top-grid dashboard-head-grid">
+        <section class="stat-box control-box">
+          <div class="box-head">Control Panel</div>
+          <div class="control-table">
+            <div class="control-row"><span>User</span><strong id="controlUser">-</strong></div>
+            <div class="control-row"><span>Role</span><strong id="controlRole">-</strong></div>
+            <div class="control-row"><span>Pharmacy</span><strong id="controlPharmacy">-</strong></div>
+          </div>
+        </section>
+        <section class="stat-box accent-blue">
+          <div class="box-head">Dashboard KPI</div>
+          <div class="metric-label">Registered Prescriptions</div>
+          <div class="metric-value" id="metricRegistered">0</div>
+        </section>
+        <section class="stat-box accent-amber">
+          <div class="box-head">Dashboard KPI</div>
+          <div class="metric-label">Pending Prescriptions</div>
+          <div class="metric-value" id="metricPending">0</div>
+        </section>
+        <section class="stat-box accent-red">
+          <div class="box-head">Dashboard KPI</div>
+          <div class="metric-label">Returned Prescriptions</div>
+          <div class="metric-value" id="metricReturned">0</div>
+        </section>
+      </div>
+
+      <div class="dashboard-main-grid">
+        <section class="panel-card">
+          <div class="panel-title-row">
+            <div class="panel-title">⚡ Quick Prescription Entry</div>
+            <div class="scope-chip" id="dashboardScopeChip">-</div>
+          </div>
+          <div class="form-grid two-col">
+            <div class="field full"><label>Drug</label><select id="quickDrug"></select></div>
+            <div class="field"><label>Patient Name</label><input id="quickPatientName"></div>
+            <div class="field"><label>File No.</label><input id="quickPatientFile"></div>
+            <div class="field"><label>Doctor</label><input id="quickDoctor" list="doctorList"><datalist id="doctorList"></datalist></div>
+            <div class="field"><label>Pharmacist</label><select id="quickPharmacist"></select></div>
+            <div class="field"><label>Available Stock</label><input id="quickAvailableStock" readonly></div>
+            <div class="field"><label>Boxes</label><input id="quickBoxes" type="number" min="0" value="0"></div>
+            <div class="field"><label>Units</label><input id="quickUnits" type="number" min="0" value="0"></div>
+          </div>
+          <div class="actions-row actions-row-split">
+            <div class="live-time" id="quickLiveTime">-</div>
+            <button id="registerQuickBtn" class="primary-btn">Register</button>
+          </div>
+        </section>
+
+        <section class="panel-card">
+          <div class="panel-title">Recent Registered Prescriptions</div>
+          <div id="recentList" class="recent-list"></div>
+        </section>
+      </div>
+
+      <section class="panel-card">
+        <div class="panel-title-row">
+          <div class="panel-title">Medication Cards</div>
+          <div class="toolbar-inline search-wrap compact-search">
+            <input id="drugCardsSearch" class="search-input" placeholder="Search medication cards">
+          </div>
+        </div>
+        <div id="drugCards" class="drug-grid"></div>
+      </section>
+    </div>
+
+    <div id="page-inventory" class="page-block hidden">
+      <section class="panel-card">
+        <div class="panel-title-row">
+          <div class="panel-title">Inventory</div>
+          <div class="toolbar-inline">
+            <input id="inventorySearch" class="search-input" placeholder="Search inventory">
+            <select id="inventoryLocationFilter" class="search-input"></select>
+            <button id="openShipmentModalBtn" class="primary-btn admin-only">Receive Shipment</button>
+            <button id="openTransferModalBtn" class="soft-btn admin-only">Transfer Stock</button>
+            <button id="openAddDrugModalBtn" class="soft-btn admin-only">Add Drug</button>
+          </div>
+        </div>
+        <div class="table-shell">
+          <table>
+            <thead>
+              <tr>
+                <th>Actions</th>
+                <th>Scientific Name</th>
+                <th>Trade Name</th>
+                <th>Category</th>
+                <th>Strength</th>
+                <th>Dosage Form</th>
+                <th>Units / Box</th>
+                <th>Available</th>
+                <th>Low</th>
+              </tr>
+            </thead>
+            <tbody id="inventoryTbody"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+    <div id="page-shipments" class="page-block hidden admin-only-block">
+      <section class="panel-card">
+        <div class="panel-title">Shipments & Stock Actions</div>
+        <div class="shipment-actions-grid">
+          <button class="action-tile" id="openShipmentModalBtn2">Receive Shipment</button>
+          <button class="action-tile" id="openTransferModalBtn2">Transfer Stock</button>
+          <button class="action-tile" id="openAddDrugModalBtn2">Add Drug</button>
+        </div>
+      </section>
+    </div>
+
+    <div id="page-transactions" class="page-block hidden">
+      <section class="panel-card">
+        <div class="panel-title-row">
+          <div class="panel-title">Transactions</div>
+          <div class="toolbar-inline">
+            <input id="transactionsSearch" class="search-input" placeholder="Search transactions">
+          </div>
+        </div>
+        <div class="table-shell">
+          <table>
+            <thead>
+              <tr>
+                <th>Date & Time</th>
+                <th>Type</th>
+                <th>Drug</th>
+                                <th>Boxes</th>
+                <th>Units</th>
+                <th>By</th>
+                <th>Note</th>
+              </tr>
+            </thead>
+            <tbody id="transactionsTbody"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+    <div id="page-reports" class="page-block hidden admin-only-block">
+      <section class="panel-card">
+        <div class="panel-title">Printed Reports</div>
+        <div class="form-grid two-col">
+          <div class="field"><label>From Date</label><input id="reportFromDate" type="date"></div>
+          <div class="field"><label>To Date</label><input id="reportToDate" type="date"></div>
+          <div class="field"><label>Drug</label><select id="reportDrug"></select></div>
+          <div class="field"><label>Pharmacy</label><select id="reportPharmacy"></select></div>
+        </div>
+        <div class="actions-row">
+          <button id="printDrugReportBtn" class="primary-btn">Print Drug Report</button>
+          <button id="printComprehensiveReportBtn" class="soft-btn">Print Comprehensive Report</button>
+        </div>
+      </section>
+    </div>
+
+    <div id="page-audit" class="page-block hidden admin-only-block">
+      <section class="panel-card">
+        <div class="panel-title-row">
+          <div class="panel-title">Audit Workspace</div>
+          <div class="toolbar-inline">
+            <input id="auditSearch" class="search-input" placeholder="Search in audit">
+          </div>
+        </div>
+        <div class="form-grid two-col audit-controls">
+          <div class="field"><label>Pharmacy</label><select id="auditPharmacy"></select></div>
+          <div class="field"><label>Auditor</label><select id="auditAuditor"></select></div>
+        </div>
+        <div class="tabs-row">
+          <button class="tab-btn active" data-audittab="new">Prescriptions</button>
+          <button class="tab-btn" data-audittab="pending">Pending</button>
+          <button class="tab-btn" data-audittab="verified">Verified</button>
+        </div>
+        <div class="table-shell">
+          <table>
+            <thead>
+              <tr>
+                <th>Date & Time</th>
+                <th>Drug</th>
+                <th>Patient</th>
+                <th>File No.</th>
+                <th>Boxes</th>
+                <th>Units</th>
+                <th>Doctor</th>
+                <th>Note</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="auditTbody"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+    <div id="page-settings" class="page-block hidden admin-only-block">
+      <div class="dashboard-main-grid settings-grid">
+        <section class="panel-card">
+          <div class="panel-title">System Settings</div>
+          <div class="form-grid two-col">
+            <div class="field"><label>Selected Pharmacy</label><select id="settingsPharmacy"></select></div>
+            <div class="field"><label>Month</label><select id="settingsMonth"></select></div>
+            <div class="field"><label>Year</label><input id="settingsYear" type="number"></div>
+          </div>
+          <div class="actions-row">
+            <button id="saveSettingsBtn" class="primary-btn">Save Settings</button>
+            <button id="resetPasswordOpenBtn" class="soft-btn">Reset Password</button>
+          </div>
+        </section>
+
+        <section class="panel-card">
+          <div class="panel-title">Pharmacists</div>
+          <div class="form-grid two-col">
+            <div class="field"><label>Pharmacist Name</label><input id="pharmacistName"></div>
+            <div class="field"><label>Job Number</label><input id="pharmacistJobNumber"></div>
+            <div class="field"><label>Can Audit</label><select id="pharmacistCanAudit"><option value="false">No</option><option value="true">Yes</option></select></div>
+            <div class="field full">
+              <label>Pharmacies</label>
+              <div id="pharmacistPharmacyCheckboxes" class="checkbox-grid"></div>
+            </div>
+          </div>
+          <div class="actions-row actions-row-split">
+            <div id="pharmacistFormMode" class="form-mode-label">Add new pharmacist</div>
+            <div class="button-inline-group">
+              <button id="cancelPharmacistEditBtn" class="soft-btn hidden">Cancel</button>
+              <button id="savePharmacistBtn" class="primary-btn">Add Pharmacist</button>
+            </div>
+          </div>
+          <div class="table-shell small">
+            <table>
+              <thead>
+                <tr><th>Name</th><th>Job No.</th><th>Pharmacies</th><th>Can Audit</th><th>Active</th><th>Action</th></tr>
+              </thead>
+              <tbody id="pharmacistsTbody"></tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    </div>
+  </section>
+
+  <div id="overlay" class="overlay hidden"></div>
+
+  <div id="passwordModal" class="modal hidden">
+    <div class="modal-header">Login</div>
+    <div class="modal-body">
+      <div id="passwordModalRole" class="modal-note"></div>
+      <div class="field"><label>Password</label><input id="loginPassword" type="password"></div>
+    </div>
+    <div class="modal-actions">
+      <button id="passwordCancelBtn" class="soft-btn">Cancel</button>
+      <button id="passwordLoginBtn" class="primary-btn">Login</button>
+    </div>
+  </div>
+
+  <div id="actionModal" class="modal hidden">
+    <div class="modal-header" id="actionTitle">Please wait</div>
+    <div class="modal-body" id="actionBody"></div>
+    <div class="modal-actions">
+      <button id="actionOkBtn" class="primary-btn hidden">OK</button>
+    </div>
+  </div>
+
+  <div id="resetPasswordModal" class="modal hidden">
+    <div class="modal-header">Reset Password</div>
+    <div class="modal-body">
+      <div class="field"><label>Select Pharmacy User</label><select id="resetPasswordRole"></select></div>
+      <div id="resetPasswordHint" class="modal-note"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="soft-btn" data-close="resetPasswordModal">Cancel</button>
+      <button id="confirmResetPasswordBtn" class="primary-btn">Reset to 111111</button>
+    </div>
+  </div>
+
+  <div id="changePasswordModal" class="modal hidden">
+    <div class="modal-header">Change Password</div>
+    <div class="modal-body">
+      <div class="field"><label>Current Password</label><input id="currentPassword" type="password"></div>
+      <div class="field"><label>New Password</label><input id="newPassword" type="password"></div>
+      <div class="field"><label>Confirm Password</label><input id="confirmPassword" type="password"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="soft-btn" data-close="changePasswordModal">Cancel</button>
+      <button id="savePasswordBtn" class="primary-btn">Save</button>
+    </div>
+  </div>
+
+  <div id="drugModal" class="modal wide hidden">
+    <div class="modal-header">Drug Interface</div>
+    <div class="modal-body">
+      <div class="form-grid two-col">
+        <div class="field"><label>Scientific Name</label><input id="drugScientificName"></div>
+        <div class="field"><label>Trade Name</label><input id="drugTradeName"></div>
+        <div class="field"><label>Category</label><input id="drugCategory"></div>
+        <div class="field"><label>Strength</label><input id="drugStrength"></div>
+        <div class="field"><label>Dosage Form</label><input id="drugDosageForm"></div>
+        <div class="field"><label>Units Per Box</label><input id="drugUnitsPerBox" type="number" min="1"></div>
+        <div class="field"><label>Reorder Level (Units)</label><input id="drugReorderLevel" type="number" min="0"></div>
+        <div class="field"><label>Current Stock</label><input id="drugCurrentStock" readonly></div>
+      </div>
+      <div class="actions-row">
+        <button id="saveDrugInfoBtn" class="primary-btn admin-only">Save Drug Info</button>
+        <button id="deleteDrugBtn" class="soft-btn admin-only">Delete Drug</button>
+      </div>
+      <div class="divider"></div>
+      <div class="panel-title-row"><div class="panel-title">Drug Prescriptions</div><div class="live-time muted" id="drugModalLiveTime">-</div></div>
+      <div class="table-shell small-drug-table">
+        <table>
+          <thead>
+            <tr>
+              <th>Date & Time</th>
+              <th>Patient</th>
+              <th>File No.</th>
+              <th>Boxes</th>
+              <th>Units</th>
+              <th>Doctor</th>
+              <th>Pharmacist</th>
+              <th>Status</th>
+              <th>Action</th>
+              <th>Edit</th>
+            </tr>
+          </thead>
+          <tbody id="drugRxTbody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="soft-btn" data-close="drugModal">Close</button>
+    </div>
+  </div>
+
+  <div id="editPrescriptionModal" class="modal hidden">
+    <div class="modal-header">Edit Prescription</div>
+    <div class="modal-body">
+      <div class="form-grid two-col">
+        <div class="field full"><label>Drug</label><input id="editRxDrugDisplay" readonly></div>
+        <div class="field"><label>Patient Name</label><input id="editPatientName"></div>
+        <div class="field"><label>File No.</label><input id="editPatientFile"></div>
+        <div class="field"><label>Doctor</label><input id="editDoctor"></div>
+        <div class="field"><label>Pharmacist</label><select id="editPharmacist"></select></div>
+        <div class="field"><label>Boxes</label><input id="editBoxes" type="number" min="0" value="0"></div>
+        <div class="field"><label>Units</label><input id="editUnits" type="number" min="0" value="0"></div>
+        <div class="field full"><label>Available Stock After Edit</label><input id="editAvailableAfter" readonly></div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="soft-btn" data-close="editPrescriptionModal">Cancel</button>
+      <button id="saveEditPrescriptionBtn" class="primary-btn">Save Changes</button>
+    </div>
+  </div>
+
+  <div id="shipmentModal" class="modal hidden">
+    <div class="modal-header">Receive Shipment</div>
+    <div class="modal-body">
+      <div class="form-grid two-col">
+        <div class="field full"><label>Drug</label><select id="shipmentDrug"></select></div>
+        <div class="field"><label>Boxes</label><input id="shipmentBoxes" type="number" min="0" value="0"></div>
+        <div class="field"><label>Units</label><input id="shipmentUnits" type="number" min="0" value="0"></div>
+        <div class="field full"><label>Stock Location</label><select id="shipmentLocation"></select></div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="soft-btn" data-close="shipmentModal">Cancel</button>
+      <button id="saveShipmentBtn" class="primary-btn">Receive</button>
+    </div>
+  </div>
+
+  <div id="transferModal" class="modal hidden">
+    <div class="modal-header">Transfer Stock</div>
+    <div class="modal-body">
+      <div class="form-grid two-col">
+        <div class="field full"><label>Drug</label><select id="transferDrug"></select></div>
+        <div class="field"><label>From</label><select id="transferFrom"></select></div>
+        <div class="field"><label>To</label><select id="transferTo"></select></div>
+        <div class="field"><label>Boxes</label><input id="transferBoxes" type="number" min="0" value="0"></div>
+        <div class="field"><label>Units</label><input id="transferUnits" type="number" min="0" value="0"></div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="soft-btn" data-close="transferModal">Cancel</button>
+      <button id="saveTransferBtn" class="primary-btn">Transfer</button>
+    </div>
+  </div>
+
+  <div id="addDrugModal" class="modal hidden">
+    <div class="modal-header">Add Drug</div>
+    <div class="modal-body">
+      <div class="form-grid two-col">
+        <div class="field"><label>Scientific Name</label><input id="newScientificName"></div>
+        <div class="field"><label>Trade Name</label><input id="newTradeName"></div>
+        <div class="field"><label>Category</label><input id="newCategory"></div>
+        <div class="field"><label>Strength</label><input id="newStrength"></div>
+        <div class="field"><label>Dosage Form</label><input id="newDosageForm"></div>
+        <div class="field"><label>Units Per Box</label><input id="newUnitsPerBox" type="number" min="1" value="30"></div>
+        <div class="field"><label>Reorder Level (Units)</label><input id="newReorderLevel" type="number" min="0" value="30"></div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="soft-btn" data-close="addDrugModal">Cancel</button>
+      <button id="saveNewDrugBtn" class="primary-btn">Add Drug</button>
+    </div>
+  </div>
+
+  
+  <div id="adjustStockModal" class="modal hidden">
+    <div class="modal-header">Adjust Available Stock</div>
+    <div class="modal-body">
+      <div class="form-grid two-col">
+        <div class="field full"><label>Drug</label><input id="adjustStockDrugDisplay" readonly></div>
+        <div class="field"><label>Pharmacy</label><input id="adjustStockPharmacyDisplay" readonly></div>
+        <div class="field"><label>Boxes</label><input id="adjustStockBoxes" type="number" min="0" value="0"></div>
+        <div class="field"><label>Units</label><input id="adjustStockUnits" type="number" min="0" value="0"></div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="soft-btn" data-close="adjustStockModal">Cancel</button>
+      <button id="saveAdjustStockBtn" class="primary-btn">Save Stock</button>
+    </div>
+  </div>
+
+
+  <div id="confirmActionModal" class="modal hidden">
+    <div class="modal-header" id="confirmActionTitle">Confirm Action</div>
+    <div class="modal-body">
+      <div id="confirmActionText" class="modal-note"></div>
+      <div class="field">
+        <label>Pharmacist</label>
+        <select id="confirmActionPharmacist"></select>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button id="confirmActionCancelBtn" class="soft-btn">Cancel</button>
+      <button id="confirmActionOkBtn" class="primary-btn">Confirm</button>
+    </div>
+  </div>
+
+  <div id="duplicateWarningModal" class="modal wide extra-wide hidden">
+    <div class="modal-header">Duplicate Prescription Warning</div>
+    <div class="modal-body">
+      <div id="duplicateWarningText" class="modal-note"></div>
+      <div class="table-shell wide-shell">
+        <table>
+          <thead>
+            <tr><th>Drug</th><th>Patient</th><th>File No.</th><th>Pharmacy</th><th>Date & Time</th></tr>
+          </thead>
+          <tbody id="duplicateWarningTbody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button id="duplicateWarningCancelBtn" class="soft-btn">Cancel</button>
+      <button id="duplicateWarningContinueBtn" class="primary-btn">Continue Registration</button>
+    </div>
+  </div>
+    <div id="auditMenuPortal" class="audit-menu-portal hidden"></div>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
