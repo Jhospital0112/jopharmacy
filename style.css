@@ -1,0 +1,1835 @@
+:root{
+  --bg:#eef2f7;
+  --card:#ffffff;
+  --soft:#f5f7fb;
+  --line:#d7dfeb;
+  --line-strong:#c5d0df;
+  --text:#24384f;
+  --muted:#6b7d92;
+  --navy:#173a66;
+  --blue:#3994e6;
+  --blue-strong:#2f7fca;
+  --shadow:0 10px 30px rgba(19,58,102,.08);
+  --shadow-soft:0 6px 18px rgba(19,58,102,.08);
+  --danger:#b4233a;
+  --success:#13795b;
+}
+body.dark{
+  --bg:#0f1722;
+  --card:#172131;
+  --soft:#101927;
+  --line:#304257;
+  --line-strong:#3f536a;
+  --text:#edf3fb;
+  --muted:#b7c4d5;
+  --navy:#214f83;
+  --blue:#5aa8f0;
+  --blue-strong:#3f8dd8;
+  --shadow:0 10px 30px rgba(0,0,0,.24);
+  --shadow-soft:0 6px 18px rgba(0,0,0,.22);
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:Inter,Segoe UI,Arial,sans-serif}
+button,input,select,textarea{font:inherit}
+.hidden{display:none!important}
+.app-header{position:sticky;top:0;z-index:30;background:#fff;border-bottom:1px solid var(--line);padding:20px 16px}
+body.dark .app-header{background:#101927}
+.app-title{text-align:center;font-size:17px;font-weight:900;letter-spacing:.02em;color:var(--navy)}
+.page{max-width:1500px;margin:0 auto;padding:20px 24px}
+.login-shell,.main-nav-card,.panel-card,.stat-box,.modal{background:var(--card);border:1px solid var(--line);border-radius:24px;box-shadow:var(--shadow)}
+.section-caption{font-weight:800;color:var(--navy);margin-bottom:16px}
+.login-shell{padding:22px}
+.login-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:18px}
+.login-card{display:flex;flex-direction:column;align-items:flex-start;gap:12px;padding:24px;border:1px solid var(--line);border-radius:22px;background:linear-gradient(180deg,#fff,#f8fbff);cursor:pointer;color:var(--text);text-align:left;box-shadow:var(--shadow-soft);transition:.18s ease}
+body.dark .login-card{background:linear-gradient(180deg,#182334,#101927)}
+.login-card:hover,.drug-card:hover,.action-tile:hover{transform:translateY(-2px)}
+.login-icon{font-size:34px}.login-name{font-weight:800}.login-desc{font-size:13px;line-height:1.6;color:var(--muted)}
+.main-nav-card{display:grid;grid-template-columns:auto 1fr auto;gap:18px;align-items:center;padding:12px 18px;margin-bottom:18px}
+.nav-label{font-size:14px;font-weight:800;color:var(--muted);padding-right:8px}
+.nav-links,.nav-actions,.toolbar-inline,.actions-row,.tabs-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.nav-link,.soft-btn,.primary-btn,.action-tile,.tab-btn{border-radius:14px;border:1px solid transparent;padding:12px 16px;font-weight:700;cursor:pointer;transition:.18s ease}
+.nav-link{background:transparent;color:var(--text)}
+.nav-link.active{background:var(--soft);border-color:var(--line-strong);box-shadow:inset 0 -3px 0 var(--blue);color:var(--navy)}
+.soft-btn{background:var(--soft);border-color:var(--line);color:var(--text)}
+.primary-btn{background:linear-gradient(180deg,var(--blue),var(--blue-strong));color:#fff;box-shadow:var(--shadow-soft)}
+.top-grid{display:grid;grid-template-columns:1.18fr 1fr 1fr .86fr;gap:16px;margin-bottom:16px}
+.stat-box{overflow:hidden}
+.box-head{padding:14px 18px;border-bottom:1px solid var(--line);background:var(--soft);font-weight:800;text-align:center;color:var(--navy)}
+.metric-label{padding:14px 20px;text-align:center;color:var(--muted);font-weight:700}
+.metric-value{padding:28px 20px;text-align:center;font-size:40px;font-weight:900;color:var(--text)}
+.control-table{display:grid}
+.control-row{display:grid;grid-template-columns:145px 1fr;border-bottom:1px solid var(--line)}
+.control-row:last-child{border-bottom:none}
+.control-row span{padding:16px;background:var(--soft);color:var(--muted);font-weight:700}
+.control-row strong{padding:16px;text-align:center}
+.dashboard-main-grid{display:grid;grid-template-columns:.95fr 1.2fr;gap:16px;margin-bottom:16px}
+.settings-grid{grid-template-columns:1fr 1fr}
+.panel-card{padding:16px}
+.panel-title,.panel-title-row{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.panel-title{font-weight:800;color:var(--navy);margin-bottom:12px}
+.panel-title-row{margin-bottom:12px}
+.form-grid{display:grid;gap:12px}.two-col{grid-template-columns:1fr 1fr}.field.full{grid-column:1/-1}
+.field label{display:block;margin-bottom:7px;font-size:13px;font-weight:800;color:var(--navy)}
+.field input,.field select,.field textarea,.search-input{width:100%;padding:12px 14px;border:1px solid var(--line-strong);border-radius:14px;background:#fff;color:var(--text);outline:none}
+body.dark .field input,body.dark .field select,body.dark .field textarea,body.dark .search-input{background:#131d2b}
+.field input:focus,.field select:focus,.field textarea:focus,.search-input:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(57,148,230,.12)}
+.scope-chip{padding:9px 12px;border-radius:999px;background:var(--soft);border:1px solid var(--line);font-size:12px;font-weight:800;color:var(--navy)}
+.table-shell{overflow:auto;max-height:610px;border:1px solid var(--line);border-radius:18px}.small{max-height:320px}.small-drug-table{max-height:360px}
+table{width:100%;border-collapse:separate;border-spacing:0;min-width:900px}
+th,td{padding:12px 12px;border-bottom:1px solid var(--line);font-size:13px;vertical-align:middle;white-space:nowrap}
+th{position:sticky;top:0;background:var(--soft);z-index:1;text-align:left;color:var(--navy);font-weight:800}
+tr:hover td{background:rgba(57,148,230,.03)}
+.recent-list{display:grid;gap:0}
+.recent-row{display:grid;grid-template-columns:1.5fr 1fr 1fr auto;gap:12px;align-items:center;padding:14px 0;border-bottom:1px solid var(--line)}
+.recent-row:last-child{border-bottom:none}
+.recent-name{font-weight:800}.subline{color:var(--muted);font-size:12px;margin-top:4px}
+.badge{display:inline-flex;align-items:center;justify-content:center;padding:9px 14px;border-radius:999px;font-weight:800;font-size:12px;border:1px solid var(--line);background:var(--soft);min-width:100px}
+.badge.verified{color:#274c77}.badge.pending{color:#8a5a00}.badge.returned{color:#6b7280}
+.drug-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.drug-card{padding:18px;border:1px solid var(--line);border-radius:20px;background:linear-gradient(180deg,#fff,#f8fbff);cursor:pointer;box-shadow:var(--shadow-soft);transition:.18s ease}
+body.dark .drug-card{background:linear-gradient(180deg,#1a2638,#101927)}
+.drug-title{font-size:18px;font-weight:800;color:var(--navy)}
+.drug-meta{color:var(--muted);font-size:13px;margin-top:4px}
+.drug-stock{display:flex;justify-content:space-between;gap:10px;margin-top:16px;padding-top:14px;border-top:1px solid var(--line);font-size:12px;font-weight:700;color:var(--muted)}
+.drug-stock strong{display:block;color:var(--text);margin-top:4px;font-size:14px}
+.divider{height:1px;background:var(--line);margin:18px 0}
+.audit-controls{margin-bottom:14px}.tab-btn{background:var(--soft);border-color:var(--line);color:var(--text)}.tab-btn.active{background:linear-gradient(180deg,var(--blue),var(--blue-strong));color:#fff;border-color:transparent}
+.action-tile{width:100%;min-height:120px;background:linear-gradient(180deg,#fff,#f8fbff);border:1px solid var(--line);box-shadow:var(--shadow-soft);color:var(--navy);font-size:18px}
+body.dark .action-tile{background:linear-gradient(180deg,#182334,#101927)}
+.shipment-actions-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.overlay{position:fixed;inset:0;background:rgba(15,23,42,.46);z-index:40}
+.modal{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:min(92vw,580px);z-index:50;overflow:hidden}.wide{width:min(96vw,1220px)}
+.modal-header{padding:16px 18px;background:linear-gradient(180deg,var(--navy),#234b78);color:#fff;font-weight:800}.modal-body{padding:18px}.modal-actions{display:flex;justify-content:flex-end;gap:10px;padding:0 18px 18px}.modal-note{font-size:13px;color:var(--muted);margin-bottom:10px}
+.spinner{width:18px;height:18px;border:3px solid rgba(255,255,255,.25);border-top-color:var(--blue);border-radius:50%;display:inline-block;animation:spin 1s linear infinite;margin-right:8px;vertical-align:middle}@keyframes spin{to{transform:rotate(360deg)}}
+.empty-state{padding:18px;color:var(--muted);text-align:center}
+.audit-note{min-width:180px}
+@media (max-width:1280px){
+  .top-grid,.dashboard-main-grid,.settings-grid,.shipment-actions-grid,.drug-grid,.login-grid,.two-col{grid-template-columns:1fr}
+  .main-nav-card{grid-template-columns:1fr}
+  .control-row{grid-template-columns:120px 1fr}
+  .recent-row{grid-template-columns:1fr}
+}
+
+
+body{min-height:100vh}
+.actions-row{justify-content:flex-start;align-items:center}
+.toolbar-inline{justify-content:flex-start;align-items:center}
+.table-shell .soft-btn,.table-shell .primary-btn,.actions-row .soft-btn,.actions-row .primary-btn,.toolbar-inline .soft-btn,.toolbar-inline .primary-btn,.toolbar-inline .nav-link,.modal-actions .soft-btn,.modal-actions .primary-btn{min-height:44px;display:inline-flex;align-items:center;justify-content:center}
+.nav-actions{justify-content:flex-end}
+.user-menu-wrap{position:relative}
+.menu-trigger{min-width:120px}
+.user-menu-dropdown{position:absolute;top:calc(100% + 10px);right:0;min-width:220px;background:var(--card);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);padding:10px;display:grid;gap:8px;z-index:35}
+.menu-item-btn{width:100%;border:1px solid var(--line);background:var(--soft);color:var(--text);padding:12px 14px;border-radius:14px;font-weight:700;cursor:pointer;text-align:left;transition:.18s ease}
+.menu-item-btn:hover,.soft-btn:hover,.primary-btn:hover,.nav-link:hover,.tab-btn:hover{transform:translateY(-1px);filter:saturate(1.02)}
+.danger-item{color:var(--danger)}
+#page-settings .actions-row,#page-inventory .toolbar-inline,#page-transactions .toolbar-inline,#page-reports .actions-row,#page-reports .toolbar-inline,#page-audit .toolbar-inline{align-items:end}
+#page-settings .field input,#page-settings .field select{min-height:46px}
+.action-stack{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.mini-btn{padding:8px 12px;border-radius:12px;min-height:38px;font-size:12px}
+
+
+.dashboard-stats .stat-box.accent-blue .metric-value{color:#1f6fcd}
+.dashboard-stats .stat-box.accent-amber .metric-value{color:#c98308}
+.dashboard-stats .stat-box.accent-red .metric-value{color:#c94b54}
+
+.inventory-actions,.audit-action-group{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.audit-shell{background:linear-gradient(180deg,#f8fbff 0%,#eef4fb 100%);border-radius:24px;padding:18px;border:1px solid #d8e3ef;box-shadow:0 12px 28px rgba(17,46,91,.08)}
+.audit-shell table thead th{background:#edf3fa;border-bottom:1px solid #d5e1ee}
+.audit-shell table tbody tr{background:#fff;transition:transform .2s ease, box-shadow .2s ease}
+.audit-shell table tbody tr:hover{transform:translateY(-1px);box-shadow:0 10px 24px rgba(25,74,145,.08)}
+.audit-note{width:180px;border-radius:12px;border:1px solid #c8d6e8;padding:10px 12px;background:#fff}
+.mini-danger-btn{background:#fff1f2;color:#c4384a;border:1px solid #f0b6bf}
+.mini-danger-btn:hover{background:#ffe5e9}
+.stock-adjust-btn{white-space:nowrap}
+.table-shell table td .primary-btn,
+.table-shell table td .soft-btn,
+.table-shell table td .mini-danger-btn{min-width:88px;justify-content:center}
+
+
+/* Final professional alignment for audit table */
+.audit-shell {
+  overflow-x: auto;
+}
+.audit-shell table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: fixed;
+}
+.audit-shell thead th,
+.audit-shell tbody td {
+  vertical-align: middle;
+}
+.audit-shell thead th:nth-child(1) { width: 135px; }
+.audit-shell thead th:nth-child(2) { width: 150px; }
+.audit-shell thead th:nth-child(3) { width: 170px; }
+.audit-shell thead th:nth-child(4) { width: 140px; }
+.audit-shell thead th:nth-child(5) { width: 110px; }
+.audit-shell thead th:nth-child(6) { width: 70px; text-align: center; }
+.audit-shell thead th:nth-child(7) { width: 70px; text-align: center; }
+.audit-shell thead th:nth-child(8) { width: 130px; }
+.audit-shell thead th:nth-child(9) { width: 280px; }
+.audit-shell thead th:nth-child(10) { width: 360px; }
+
+.audit-shell tbody td:nth-child(6),
+.audit-shell tbody td:nth-child(7) {
+  text-align: center;
+}
+
+.audit-shell tbody td:nth-child(10) {
+  padding-right: 18px;
+}
+
+.audit-action-cell,
+.audit-action-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: nowrap;
+}
+
+.audit-action-cell {
+  justify-content: space-between;
+}
+
+.audit-note {
+  width: 180px;
+  min-width: 180px;
+  max-width: 180px;
+  height: 40px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid #c8d6e8;
+  background: #fff;
+  outline: none;
+}
+
+.audit-action-group {
+  justify-content: flex-start;
+}
+
+.audit-action-group .primary-btn,
+.audit-action-group .soft-btn,
+.audit-action-group .mini-danger-btn,
+.audit-buttons button {
+  min-width: 88px;
+  height: 40px;
+  border-radius: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  padding: 0 16px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.audit-action-group .mini-danger-btn {
+  min-width: 92px;
+}
+
+@media (max-width: 1400px) {
+  .audit-shell thead th:nth-child(10) { width: 420px; }
+}
+
+
+/* Pro audit layout */
+.audit-shell table{
+  min-width: 0 !important;
+  width: 100%;
+  table-layout: fixed;
+}
+.audit-shell thead th:nth-child(1){width:120px}
+.audit-shell thead th:nth-child(2){width:140px}
+.audit-shell thead th:nth-child(3){width:150px}
+.audit-shell thead th:nth-child(4){width:90px}
+.audit-shell thead th:nth-child(5){width:58px;text-align:center}
+.audit-shell thead th:nth-child(6){width:58px;text-align:center}
+.audit-shell thead th:nth-child(7){width:100px}
+.audit-shell thead th:nth-child(8){width:140px}
+.audit-shell thead th:nth-child(9){width:120px}
+
+.audit-shell td, .audit-shell th{
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.audit-shell tbody td:nth-child(5),
+.audit-shell tbody td:nth-child(6){text-align:center}
+
+.audit-note{
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  height: 40px;
+}
+
+.audit-action-cell{
+  display:flex;
+  align-items:center;
+  justify-content:flex-start;
+  position:relative;
+  overflow:visible !important;
+}
+
+.audit-menu-wrap{
+  position:relative;
+  display:inline-block;
+}
+
+.audit-menu-btn{
+  min-width:110px;
+  height:40px;
+  border:none;
+  border-radius:14px;
+  padding:0 16px;
+  font-weight:700;
+  background:linear-gradient(180deg,#3f95ea 0%,#2f7fd7 100%);
+  color:#fff;
+  box-shadow:0 8px 18px rgba(47,127,215,.22);
+  cursor:pointer;
+}
+
+.audit-menu{
+  position:absolute;
+  top:46px;
+  right:0;
+  min-width:170px;
+  background:#fff;
+  border:1px solid #d7e2ef;
+  border-radius:16px;
+  box-shadow:0 18px 38px rgba(28,55,90,.16);
+  padding:8px;
+  z-index:999;
+}
+
+.audit-menu.hidden{display:none}
+
+.audit-menu-item{
+  width:100%;
+  display:flex;
+  align-items:center;
+  justify-content:flex-start;
+  gap:8px;
+  background:#fff;
+  border:none;
+  border-radius:12px;
+  padding:11px 12px;
+  font-weight:700;
+  color:#1e3857;
+  cursor:pointer;
+}
+
+.audit-menu-item:hover{background:#f2f7fd}
+.audit-menu-item.danger{color:#c0392b;background:#fff7f7}
+.audit-menu-item.danger:hover{background:#ffeaea}
+
+.table-shell.audit-shell{
+  overflow-x: visible;
+}
+
+@media (max-width: 1200px){
+  .table-shell.audit-shell{overflow-x:auto}
+  .audit-shell table{min-width:980px !important}
+}
+
+#resetSystemBtn{margin-inline-start:10px;background:#fff0f0;color:#c0392b;border:1px solid #efc1c1}
+
+
+/* Final settings/action alignment */
+.settings-grid{
+  align-items: start;
+}
+#page-settings .panel-card{
+  min-height: 100%;
+}
+#page-settings .modal-actions,
+#page-settings .actions-row,
+#page-settings .toolbar-inline{
+  align-items:center;
+}
+#page-settings .primary-btn,
+#page-settings .soft-btn,
+#page-settings .mini-danger-btn,
+#page-settings .menu-trigger,
+#page-settings .menu-item-btn,
+#page-settings .audit-menu-btn{
+  height: 44px;
+  border-radius: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  padding: 0 18px;
+  white-space: nowrap;
+}
+#page-settings .panel-card .primary-btn,
+#page-settings .panel-card .soft-btn{
+  min-width: 140px;
+}
+#page-settings .form-grid .field{
+  display:flex;
+  flex-direction:column;
+}
+#page-settings .form-grid .field > label{
+  min-height: 22px;
+}
+#page-settings .form-grid.two-col{
+  align-items:end;
+}
+#page-settings .table-shell{
+  margin-top: 8px;
+}
+#page-settings table td,
+#page-settings table th{
+  vertical-align: middle;
+}
+#page-settings table td:last-child,
+#page-settings table th:last-child{
+  text-align:center;
+  width: 140px;
+}
+#page-settings .delete-pharmacist-btn{
+  min-width: 90px;
+  margin: 0 auto;
+}
+
+.audit-shell thead th:last-child,
+.audit-shell tbody td:last-child{
+  text-align:center;
+}
+
+.audit-action-cell{
+  justify-content:center;
+  width:100%;
+}
+
+.audit-menu-wrap{
+  min-width: 118px;
+}
+
+.audit-menu-btn{
+  width: 118px;
+  min-width: 118px;
+  padding: 0 14px;
+  gap: 6px;
+}
+
+.audit-menu{
+  right: 0;
+  left: auto;
+  min-width: 190px;
+  border-radius: 14px;
+  padding: 8px;
+}
+
+.audit-menu-item{
+  min-height: 42px;
+  border-radius: 10px;
+  font-size: 14px;
+}
+
+.audit-note{
+  text-align: start;
+}
+
+@media (max-width: 1200px){
+  #page-settings .dashboard-main-grid{
+    grid-template-columns: 1fr;
+  }
+}
+
+
+/* Ultra final audit dropdown fix */
+.audit-menu-wrap{position:static !important}
+.audit-menu{
+  display:none !important;
+}
+.audit-menu-portal{
+  position:fixed;
+  min-width:190px;
+  background:#fff;
+  border:1px solid #d7e2ef;
+  border-radius:16px;
+  box-shadow:0 18px 42px rgba(28,55,90,.22);
+  padding:8px;
+  z-index:2147483647 !important;
+}
+.audit-menu-portal.hidden{
+  display:none !important;
+}
+.audit-menu-portal:not(.hidden){
+  display:block !important;
+}
+.audit-menu-portal .audit-menu-item{
+  width:100%;
+  display:flex;
+  align-items:center;
+  justify-content:flex-start;
+  background:#fff;
+  border:none;
+  border-radius:12px;
+  padding:11px 12px;
+  font-weight:700;
+  color:#1e3857;
+  cursor:pointer;
+}
+.audit-menu-portal .audit-menu-item:hover{background:#f2f7fd}
+.audit-menu-portal .audit-menu-item.danger{color:#c0392b;background:#fff7f7}
+.audit-menu-portal .audit-menu-item.danger:hover{background:#ffeaea}
+
+.checkbox-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;padding:6px 0}
+.checkbox-item{display:flex;align-items:center;gap:10px;padding:12px 14px;border:1px solid #d8e0eb;border-radius:14px;background:#f8fbff;font-weight:600;color:#20344a}
+.checkbox-item input{width:18px;height:18px}
+.actions-row-split{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}
+.button-inline-group{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.form-mode-label,.live-time,.edit-countdown{color:#6a7b90;font-size:14px;font-weight:600}
+.live-time.muted{font-size:13px}
+.vertical-edit-group{display:flex;flex-direction:column;align-items:flex-start;gap:6px}
+.edit-countdown{font-size:12px;line-height:1.2}
+.extra-wide{width:min(1100px,94vw)}
+.wide-shell{max-height:420px;overflow:auto}
+.hidden{display:none !important}
+
+/* Performance + feedback fixes */
+body.action-modal-open #overlay{z-index:3990}
+#actionModal{z-index:4000}
+.toast-host{
+  position:fixed;
+  top:16px;
+  right:16px;
+  display:grid;
+  gap:10px;
+  z-index:5000;
+  pointer-events:none;
+}
+.toast{
+  min-width:280px;
+  max-width:min(92vw,420px);
+  padding:14px 16px;
+  border-radius:16px;
+  color:#fff;
+  box-shadow:0 18px 40px rgba(15,23,42,.26);
+  transform:translateY(-8px);
+  opacity:0;
+  transition:opacity .22s ease, transform .22s ease;
+  font-weight:700;
+}
+.toast.show{opacity:1;transform:translateY(0)}
+.toast-success{background:linear-gradient(180deg,#1fa971,#157f55)}
+.toast-error{background:linear-gradient(180deg,#d9534f,#b73e3a)}
+
+
+/* ==== Theme system ==== */
+body.theme-light{
+  --bg:#eef2f7;
+  --card:#ffffff;
+  --soft:#f5f7fb;
+  --line:#d7dfeb;
+  --line-strong:#c5d0df;
+  --text:#24384f;
+  --muted:#6b7d92;
+  --navy:#173a66;
+  --blue:#3994e6;
+  --blue-strong:#2f7fca;
+  --shadow:0 10px 30px rgba(19,58,102,.08);
+  --shadow-soft:0 6px 18px rgba(19,58,102,.08);
+}
+body.theme-dark{
+  --bg:#0f1722;
+  --card:#172131;
+  --soft:#101927;
+  --line:#304257;
+  --line-strong:#3f536a;
+  --text:#edf3fb;
+  --muted:#b7c4d5;
+  --navy:#7cb4ef;
+  --blue:#5aa8f0;
+  --blue-strong:#3f8dd8;
+  --shadow:0 10px 30px rgba(0,0,0,.24);
+  --shadow-soft:0 6px 18px rgba(0,0,0,.22);
+}
+body.theme-blue{
+  --bg:#edf4ff;
+  --card:#ffffff;
+  --soft:#f3f8ff;
+  --line:#d4e2f5;
+  --line-strong:#c1d5ef;
+  --text:#21364e;
+  --muted:#60758e;
+  --navy:#194d88;
+  --blue:#2f84dd;
+  --blue-strong:#216bbb;
+  --shadow:0 10px 30px rgba(25,77,136,.08);
+  --shadow-soft:0 6px 18px rgba(25,77,136,.08);
+}
+body.theme-green{
+  --bg:#eff8f2;
+  --card:#ffffff;
+  --soft:#f4fbf6;
+  --line:#d3e8d9;
+  --line-strong:#bfdcc8;
+  --text:#284236;
+  --muted:#6b8476;
+  --navy:#1b6b4c;
+  --blue:#2aa569;
+  --blue-strong:#1f8856;
+  --shadow:0 10px 30px rgba(27,107,76,.08);
+  --shadow-soft:0 6px 18px rgba(27,107,76,.08);
+}
+body.dark{ } /* legacy no-op for compatibility */
+.quick-drug-picker{display:grid;gap:8px}
+.dashboard-charts-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.chart-card{border:1px solid var(--line);border-radius:20px;background:var(--card);padding:16px}
+.chart-title{font-weight:800;color:var(--navy);margin-bottom:12px}
+.chart-bars{display:grid;grid-template-columns:repeat(7,1fr);gap:10px;align-items:end;min-height:220px}
+.chart-bars.monthly{grid-template-columns:repeat(12,1fr)}
+.chart-bar-col{display:flex;flex-direction:column;justify-content:end;align-items:center;gap:8px;min-height:220px}
+.chart-bar{width:100%;max-width:48px;border-radius:14px 14px 6px 6px;background:linear-gradient(180deg,var(--blue),var(--blue-strong));min-height:8px;box-shadow:var(--shadow-soft)}
+.chart-value{font-size:12px;font-weight:800;color:var(--navy)}
+.chart-label{font-size:11px;color:var(--muted);text-align:center;line-height:1.2}
+.pager-row{display:flex;justify-content:center;align-items:center;gap:12px;padding-top:14px}
+.pager-info{min-width:110px;text-align:center;color:var(--muted);font-weight:800}
+.transaction-filter-wrap{row-gap:10px}
+.modal-toolbar{margin-bottom:12px}
+.theme-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.theme-choice{padding:14px 16px;border-radius:16px;border:1px solid var(--line-strong);background:var(--soft);color:var(--text);font-weight:800;cursor:pointer}
+.theme-choice:hover{border-color:var(--blue);box-shadow:var(--shadow-soft)}
+.wide-shell{max-height:430px}
+.chart-panel{margin-bottom:16px}
+.recent-row-actions{display:flex;gap:8px;justify-content:flex-end}
+.recent-row-layout{display:grid;grid-template-columns:1.3fr .9fr .9fr auto;gap:12px;align-items:center;padding:14px 0;border-bottom:1px solid var(--line)}
+.recent-row-layout:last-child{border-bottom:none}
+.recent-list .recent-row-layout .subline{white-space:normal}
+button[disabled]{opacity:.55;cursor:not-allowed}
+@media (max-width:1100px){
+  .dashboard-charts-grid{grid-template-columns:1fr}
+}
+
+
+/* Auto Focus + optional prescription type */
+.muted-text{font-size:12px;color:var(--muted)}
+.field select:focus,
+.field input:focus,
+.search-input:focus{
+  outline:none;
+  border-color:var(--blue);
+  box-shadow:0 0 0 3px rgba(57,148,230,.12);
+}
+body.keyboard-navigation *:focus{
+  scroll-margin-top:90px;
+}
+
+
+/* Pro UX batch receive/transfer */
+.shipment-transfer-modal{width:min(96vw,1280px)}
+.split-batch-layout{display:grid;grid-template-columns:minmax(320px,420px) minmax(0,1fr);gap:18px;align-items:start}
+.batch-entry-pane,.batch-list-pane{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:16px}
+.batch-entry-pane .form-grid{grid-template-columns:1fr}
+.batch-table-shell{max-height:460px;min-height:360px}
+.batch-table-shell table{min-width:100%}
+.inner-actions{padding:12px 0 0}
+.panel-title-row.compact{align-items:flex-start}
+.panel-title-row.compact .subline{margin-top:4px}
+
+.extra-wide{width:min(98vw,1400px)}
+#recentPrescriptionsModal .modal-body{padding:18px 18px 10px}
+#recentPrescriptionsModal .wide-shell{max-height:70vh}
+#recentPrescriptionsModal table{min-width:1260px}
+#recentPrescriptionsModal .search-input{font-size:15px}
+#recentPrescriptionsModal .modal-actions{padding-top:10px}
+
+#drugModal table{min-width:980px}
+#drugModal .small-drug-table{max-height:420px}
+
+.rx-actions-wrap{position:relative;display:inline-block}
+.rx-actions-btn{min-width:110px}
+.rx-actions-menu{position:absolute;top:calc(100% + 8px);right:0;min-width:170px;background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);padding:8px;display:grid;gap:6px;z-index:120}
+.rx-actions-menu.hidden{display:none}
+.rx-actions-menu button{width:100%;justify-content:flex-start}
+.rx-actions-menu .mini-danger-btn,.rx-actions-menu .soft-btn,.rx-actions-menu .primary-btn{min-width:0}
+.rx-actions-cell{white-space:nowrap}
+
+@media (max-width: 980px){
+  .split-batch-layout{grid-template-columns:1fr}
+}
+
+/* Narcotic Drugs module */
+.narcotic-dispensing-grid{grid-template-columns:1.05fr .95fr}
+.narcotic-entry-card,.narcotic-recent-card{padding:16px}
+.narcotic-recent-shell{max-height:560px}
+.narcotic-drug-grid .drug-card{min-height:160px}
+.department-cards-grid .drug-card{cursor:grab}
+.department-cards-grid .drug-card.dragging{opacity:.6;transform:scale(.98)}
+.narcotic-tab-btn.active{background:linear-gradient(180deg,var(--blue),var(--blue-strong));color:#fff;border-color:transparent}
+.narcotic-stock-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:14px 0}
+.narcotic-stock-chip{padding:14px;border:1px solid var(--line);border-radius:16px;background:var(--soft);font-weight:800;color:var(--navy)}
+.narcotic-only-inline{display:none}
+.narcotic-nav-link{display:none}
+body.allow-narcotic .narcotic-nav-link{display:inline-flex}
+.narcotic-drug-badge{display:inline-flex;padding:6px 10px;border-radius:999px;background:#fff3cd;border:1px solid #f0d98a;font-size:11px;font-weight:800;color:#8a5a00;margin-top:10px}
+.department-card-meta{display:grid;gap:8px;margin-top:14px}
+.department-stock-table td:last-child,.department-stock-table th:last-child{text-align:center}
+@media (max-width:1280px){.narcotic-dispensing-grid,.narcotic-stock-summary{grid-template-columns:1fr}}
+
+
+/* ===== Narcotic page final polish ===== */
+.narcotic-tabs-row{
+  display:grid;
+  grid-template-columns:repeat(6,minmax(0,1fr));
+  gap:12px;
+  margin:18px 0 22px;
+}
+.narcotic-tab-btn{
+  min-height:52px;
+  padding:14px 12px;
+  border-radius:16px;
+  text-align:center;
+  justify-content:center;
+}
+.narcotic-tab-content > .panel-card{
+  border-radius:22px;
+}
+.narcotic-dispensing-grid{
+  grid-template-columns:minmax(0,1.18fr) minmax(0,.92fr);
+  align-items:start;
+}
+.narcotic-entry-card,
+.narcotic-recent-card{
+  min-height:100%;
+}
+.narcotic-entry-form-grid{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:14px;
+}
+.narcotic-entry-form-grid .field-span-2{
+  grid-column:span 2;
+}
+.narcotic-drug-picker{
+  display:grid;
+  gap:10px;
+}
+.narcotic-drug-picker select{
+  min-height:48px;
+}
+#narcoticPatientName{
+  min-height:48px;
+}
+.narcotic-recent-shell{
+  max-height:520px;
+}
+.narcotic-recent-shell table{
+  min-width:1000px;
+}
+.narcotic-drug-grid{
+  grid-template-columns:repeat(4,minmax(0,1fr));
+}
+.department-cards-grid{
+  grid-template-columns:repeat(4,minmax(0,1fr));
+}
+.narcotic-department-card{
+  min-height:170px;
+  border-radius:22px;
+}
+.narcotic-department-card.dragging{
+  opacity:.55;
+}
+.split-batch-layout{
+  display:grid;
+  grid-template-columns:minmax(320px,.95fr) minmax(0,1.25fr);
+  gap:18px;
+}
+.batch-entry-pane,
+.batch-list-pane{
+  border:1px solid var(--line);
+  border-radius:20px;
+  padding:16px;
+  background:linear-gradient(180deg,#fff,#f8fbff);
+}
+body.dark .batch-entry-pane,
+body.dark .batch-list-pane{
+  background:linear-gradient(180deg,#182334,#101927);
+}
+.batch-table-shell{
+  max-height:430px;
+}
+.narcotic-stock-admin-grid{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:12px;
+  margin-bottom:14px;
+}
+.narcotic-stock-admin-grid .field-actions{
+  align-self:end;
+}
+.narcotic-stock-admin-grid .field-actions .primary-btn{
+  width:100%;
+}
+.narcotic-drug-management-form{
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:12px;
+  margin-bottom:12px;
+}
+#narcoticManageDrugsTbody .mini-danger-btn{
+  min-width:96px;
+}
+@media (max-width:1400px){
+  .narcotic-tabs-row{
+    grid-template-columns:repeat(3,minmax(0,1fr));
+  }
+  .narcotic-drug-grid,
+  .department-cards-grid{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+}
+@media (max-width:1100px){
+  .narcotic-dispensing-grid,
+  .split-batch-layout,
+  .narcotic-entry-form-grid,
+  .narcotic-stock-admin-grid,
+  .narcotic-drug-management-form{
+    grid-template-columns:1fr;
+  }
+  .narcotic-entry-form-grid .field-span-2{
+    grid-column:auto;
+  }
+  .narcotic-tabs-row{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+}
+@media (max-width:720px){
+  .narcotic-tabs-row{
+    grid-template-columns:1fr;
+  }
+  .narcotic-drug-grid,
+  .department-cards-grid{
+    grid-template-columns:1fr;
+  }
+}
+
+
+/* ===== Narcotic page refined final layout ===== */
+#page-narcotic > .panel-card{
+  padding:20px;
+  border-radius:26px;
+}
+.narcotic-tabs-row{
+  display:grid;
+  grid-template-columns:repeat(6,minmax(0,1fr));
+  gap:10px;
+  margin:18px 0 24px;
+  align-items:stretch;
+}
+.narcotic-tab-btn{
+  min-height:54px;
+  padding:0 14px;
+  border-radius:18px;
+  justify-content:center;
+  text-align:center;
+  font-size:14px;
+  font-weight:800;
+}
+.narcotic-tab-content > .panel-card{
+  padding:18px;
+  border-radius:24px;
+}
+.narcotic-dispensing-grid{
+  display:grid;
+  grid-template-columns:minmax(0,1.2fr) minmax(420px,.8fr);
+  gap:18px;
+  align-items:start;
+}
+.narcotic-entry-card,
+.narcotic-recent-card{
+  border-radius:24px;
+}
+.narcotic-entry-form-grid{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:14px;
+  align-items:end;
+}
+.narcotic-entry-form-grid .field.full{
+  grid-column:1 / -1;
+}
+.narcotic-drug-picker{
+  display:grid;
+  grid-template-columns:minmax(240px,.95fr) minmax(0,1fr);
+  gap:12px;
+  align-items:center;
+}
+.narcotic-drug-picker .search-input,
+.narcotic-drug-picker select,
+#narcoticPatientName{
+  min-height:50px;
+}
+#narcoticPatientName{
+  font-size:15px;
+  font-weight:600;
+}
+.narcotic-recent-shell{
+  max-height:585px;
+}
+.narcotic-recent-shell table{
+  min-width:980px;
+}
+.narcotic-drug-grid{
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:14px;
+}
+.department-cards-grid{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:16px;
+}
+.narcotic-department-card{
+  min-height:132px;
+  border-radius:24px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background:linear-gradient(180deg,#ffffff,#f6faff);
+  border:1px solid var(--line);
+  box-shadow:var(--shadow-soft);
+  padding:20px;
+}
+body.dark .narcotic-department-card{
+  background:linear-gradient(180deg,#1a2638,#101927);
+}
+.narcotic-department-card-title{
+  font-size:20px;
+  font-weight:900;
+  color:var(--navy);
+  text-align:center;
+  line-height:1.35;
+}
+.narcotic-department-card.dragging{
+  opacity:.55;
+}
+.narcotic-stock-summary{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:12px;
+  margin:16px 0 14px;
+}
+.narcotic-stock-chip{
+  min-height:72px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  text-align:center;
+  border-radius:18px;
+  background:var(--soft);
+  border:1px solid var(--line);
+  padding:14px;
+  font-weight:800;
+  color:var(--navy);
+}
+.narcotic-stock-admin-grid{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:12px;
+  margin-bottom:16px;
+  align-items:end;
+}
+.narcotic-stock-admin-grid .field-actions .primary-btn{
+  width:100%;
+  min-height:48px;
+}
+.narcotic-drug-management-form{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:12px;
+  margin-bottom:14px;
+}
+.split-batch-layout{
+  display:grid;
+  grid-template-columns:minmax(340px,.9fr) minmax(0,1.1fr);
+  gap:18px;
+  align-items:start;
+}
+.batch-entry-pane,
+.batch-list-pane{
+  border-radius:22px;
+  border:1px solid var(--line);
+  padding:16px;
+  background:linear-gradient(180deg,#fff,#f8fbff);
+}
+body.dark .batch-entry-pane,
+body.dark .batch-list-pane{
+  background:linear-gradient(180deg,#182334,#101927);
+}
+@media (max-width:1400px){
+  .narcotic-tabs-row{grid-template-columns:repeat(3,minmax(0,1fr));}
+  .department-cards-grid,.narcotic-drug-grid{grid-template-columns:repeat(2,minmax(0,1fr));}
+}
+@media (max-width:1100px){
+  .narcotic-dispensing-grid,
+  .split-batch-layout,
+  .narcotic-entry-form-grid,
+  .narcotic-stock-admin-grid,
+  .narcotic-drug-management-form{
+    grid-template-columns:1fr;
+  }
+  .narcotic-drug-picker{
+    grid-template-columns:1fr;
+  }
+  .narcotic-tabs-row{grid-template-columns:repeat(2,minmax(0,1fr));}
+  .narcotic-stock-summary{grid-template-columns:repeat(2,minmax(0,1fr));}
+}
+@media (max-width:720px){
+  .narcotic-tabs-row,
+  .department-cards-grid,
+  .narcotic-drug-grid,
+  .narcotic-stock-summary{
+    grid-template-columns:1fr;
+  }
+}
+
+
+/* Narcotic page final layout */
+.narcotic-entry-shell{padding:18px}
+.narcotic-entry-layout{display:block}
+.narcotic-entry-form-grid{grid-template-columns:repeat(4,minmax(0,1fr));align-items:end}
+.narcotic-entry-form-grid .field.full{grid-column:1/-1}
+.narcotic-entry-form-grid .wide-field{grid-column:span 2}
+.narcotic-entry-form-grid .patient-field input{min-height:48px}
+.narcotic-entry-main{background:linear-gradient(180deg,#ffffff,#f8fbff);border:1px solid var(--line);border-radius:22px;padding:18px;box-shadow:var(--shadow-soft)}
+.narcotic-recent-section{margin-top:18px;background:var(--card);border:1px solid var(--line);border-radius:20px;padding:16px}
+.narcotic-recent-shell table{min-width:1120px}
+.narcotic-drug-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+.narcotic-drug-card{min-height:150px}
+.narcotic-drug-card .drug-title{font-size:20px}
+.narcotic-drug-card .drug-meta{white-space:normal;line-height:1.55}
+.narcotic-drug-card .drug-stock{display:none}
+.narcotic-drug-badge{display:none}
+.narcotic-department-card{display:flex;align-items:center;justify-content:center;min-height:100px;text-align:center}
+.narcotic-department-card-title{font-size:22px;font-weight:800;color:var(--navy)}
+.narcotic-stock-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:14px 0}
+.narcotic-stock-chip{border:1px solid var(--line);background:var(--soft);border-radius:18px;padding:18px 16px;text-align:center;font-weight:800;color:var(--navy)}
+.narcotic-stock-admin-grid{display:grid;grid-template-columns:1fr 1fr auto;gap:12px;align-items:end;margin-bottom:14px}
+.narcotic-dept-table-shell table{min-width:1000px}
+.narcotic-dept-table-shell th,.narcotic-dept-table-shell td{white-space:nowrap}
+.narcotic-order-warning-strong{display:block;font-weight:800;color:var(--navy);margin:8px 0}
+@media (max-width:1200px){
+  .narcotic-entry-form-grid,.narcotic-stock-summary,.narcotic-stock-admin-grid{grid-template-columns:1fr 1fr}
+}
+@media (max-width:780px){
+  .narcotic-entry-form-grid,.narcotic-stock-summary,.narcotic-stock-admin-grid,.narcotic-drug-grid{grid-template-columns:1fr}
+  .narcotic-entry-form-grid .wide-field{grid-column:1/-1}
+}
+
+
+/* ===== Narcotic Drugs V5 polish ===== */
+.narcotic-entry-shell{
+  background:linear-gradient(180deg,#ffffff 0%,#f7fbff 100%);
+  border:1px solid #d8e5f2;
+  box-shadow:0 16px 34px rgba(24,64,118,.08);
+}
+body.dark .narcotic-entry-shell{
+  background:linear-gradient(180deg,#172131 0%,#101927 100%);
+}
+.narcotic-entry-layout{display:block}
+.narcotic-entry-main{width:100%}
+.narcotic-entry-form-grid{
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:14px 16px;
+  align-items:end;
+}
+.narcotic-entry-form-grid .patient-field{
+  grid-column:span 2;
+}
+.narcotic-entry-form-grid .field.full{
+  grid-column:1 / -1;
+}
+.narcotic-drug-picker{
+  grid-template-columns:minmax(240px,.8fr) minmax(0,1fr);
+}
+.narcotic-entry-shell .actions-row-split{
+  justify-content:space-between;
+  margin-top:14px;
+  padding-top:14px;
+  border-top:1px solid var(--line);
+}
+.narcotic-entry-shell .button-inline-group{gap:10px;flex-wrap:wrap}
+.narcotic-entry-shell .live-time{
+  padding:10px 14px;
+  border-radius:999px;
+  background:var(--soft);
+  border:1px solid var(--line);
+  font-weight:800;
+  color:var(--navy);
+}
+.narcotic-recent-section{
+  margin-top:18px;
+  padding-top:18px;
+  border-top:1px solid var(--line);
+}
+.narcotic-recent-section .panel-title{
+  margin-bottom:0;
+}
+.narcotic-recent-shell{
+  border-radius:20px;
+  max-height:380px;
+}
+.narcotic-recent-shell table{
+  min-width:1120px;
+}
+.narcotic-drug-grid .narcotic-drug-card{
+  min-height:154px;
+  padding:18px;
+  border-radius:22px;
+  background:linear-gradient(180deg,#ffffff 0%,#f6faff 100%);
+  border:1px solid #dbe7f3;
+  box-shadow:0 10px 24px rgba(19,58,102,.08);
+}
+body.dark .narcotic-drug-grid .narcotic-drug-card{
+  background:linear-gradient(180deg,#182334 0%,#111927 100%);
+}
+.narcotic-drug-grid .drug-title{
+  font-size:18px;
+  line-height:1.25;
+}
+.narcotic-drug-grid .drug-meta{
+  font-size:13px;
+}
+.narcotic-drug-grid .drug-meta + .drug-meta{
+  margin-top:2px;
+}
+#narcoticDepartmentModal .modal-body,
+#narcoticRecentModal .modal-body,
+#narcoticDrugInfoModal .modal-body{
+  background:linear-gradient(180deg,#ffffff 0%,#fbfdff 100%);
+}
+#narcoticDepartmentModal .wide-shell{
+  max-height:52vh;
+  border-radius:18px;
+}
+#narcoticDepartmentModal table{
+  min-width:980px;
+}
+#narcoticDepartmentModal th,
+#narcoticDepartmentModal td{
+  padding:12px 14px;
+}
+#narcoticDepartmentModal tbody tr:hover td{
+  background:rgba(57,148,230,.05);
+}
+.narcotic-stock-summary{
+  grid-template-columns:repeat(4,minmax(0,1fr));
+}
+.narcotic-stock-chip{
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  align-items:center;
+  justify-content:center;
+  min-height:84px;
+}
+.narcotic-stock-chip strong{
+  font-size:22px;
+}
+.narcotic-report-shell{
+  background:linear-gradient(180deg,#ffffff 0%,#f8fbff 100%);
+}
+.narcotic-report-filters-grid{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:14px 16px;
+  align-items:end;
+}
+.narcotic-report-filters-grid .field-span-2{
+  grid-column:span 2;
+}
+.narcotic-report-toolbar{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:14px;
+  flex-wrap:wrap;
+  margin:16px 0 18px;
+}
+.narcotic-report-preview-cards{
+  display:grid;
+  grid-template-columns:repeat(5,minmax(0,1fr));
+  gap:12px;
+  margin-bottom:16px;
+}
+.narcotic-report-card{
+  padding:16px;
+  border-radius:18px;
+  background:var(--soft);
+  border:1px solid var(--line);
+  box-shadow:var(--shadow-soft);
+}
+.narcotic-report-card-label{
+  font-size:12px;
+  color:var(--muted);
+  font-weight:800;
+  text-transform:uppercase;
+  letter-spacing:.04em;
+}
+.narcotic-report-card-value{
+  margin-top:8px;
+  font-size:18px;
+  font-weight:900;
+  color:var(--navy);
+  line-height:1.3;
+}
+.narcotic-report-preview-shell{
+  max-height:58vh;
+  border-radius:20px;
+}
+.narcotic-report-preview-shell table{
+  min-width:980px;
+}
+.narcotic-report-preview-shell th{
+  background:#edf4fb;
+}
+.narcotic-report-preview-shell tbody tr:hover td{
+  background:rgba(57,148,230,.05);
+}
+@media (max-width:1200px){
+  .narcotic-entry-form-grid,
+  .narcotic-report-filters-grid{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+  .narcotic-report-preview-cards{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+}
+@media (max-width:760px){
+  .narcotic-entry-form-grid,
+  .narcotic-report-filters-grid,
+  .narcotic-stock-summary,
+  .narcotic-report-preview-cards{
+    grid-template-columns:1fr;
+  }
+  .narcotic-drug-picker{
+    grid-template-columns:1fr;
+  }
+  .narcotic-entry-shell .actions-row-split{
+    align-items:flex-start;
+  }
+}
+
+
+/* ==== Final narcotic full layout patch ==== */
+
+.spacer-16{height:16px}
+.hidden-input-clone{position:absolute;opacity:0;pointer-events:none;width:1px;height:1px}
+.narcotic-dispensing-dashboard{display:flex;flex-direction:column;gap:18px}
+.narcotic-top-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px;align-items:stretch}
+.narcotic-smart-chart-card,.narcotic-entry-main{background:linear-gradient(180deg,#ffffff,#f8fbff);border:1px solid var(--line);border-radius:22px;padding:18px;box-shadow:var(--shadow-soft)}
+body.dark .narcotic-smart-chart-card,body.dark .narcotic-entry-main{background:linear-gradient(180deg,#172131,#101927)}
+.narcotic-smart-filters{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:12px 0 16px}
+.narcotic-smart-chart-bars{display:flex;align-items:flex-end;gap:12px;min-height:270px;padding:16px;border:1px solid var(--line);border-radius:20px;background:var(--soft);overflow-x:auto}
+.narcotic-smart-bar{min-width:78px;display:flex;flex-direction:column;align-items:center;gap:8px}
+.narcotic-smart-bar-track{height:180px;width:44px;border-radius:16px;background:rgba(57,148,230,.08);display:flex;align-items:flex-end;padding:4px}
+.narcotic-smart-bar-fill{width:100%;border-radius:12px 12px 10px 10px;background:linear-gradient(180deg,#5aa9ff,#1f6fe5);min-height:8px}
+.narcotic-smart-bar-label{font-size:12px;font-weight:800;color:var(--navy);text-align:center;line-height:1.3}
+.narcotic-smart-bar-value{font-size:12px;color:var(--muted);font-weight:700}
+.rx-actions-wrap{position:relative;display:inline-flex}
+.rx-actions-menu{top:auto;bottom:calc(100% + 8px);right:0;left:auto;min-width:180px;z-index:400}
+.narcotic-dept-modal-body{display:flex;flex-direction:column;gap:16px}
+.narcotic-dept-modal-head{display:flex;justify-content:flex-start}
+.narcotic-dept-name-card{display:inline-flex;flex-direction:column;gap:6px;padding:16px 18px;border:1px solid var(--line);border-radius:20px;background:linear-gradient(180deg,#ffffff,#f6faff);min-width:220px}
+body.dark .narcotic-dept-name-card{background:linear-gradient(180deg,#182334,#111927)}
+.narcotic-dept-name-label{font-size:12px;text-transform:uppercase;letter-spacing:.04em;font-weight:800;color:var(--muted)}
+.narcotic-dept-name-card strong{font-size:26px;color:var(--navy)}
+.narcotic-inner-tabs-row{margin-top:-4px}
+.narcotic-detail-tab-content{display:block}
+.narcotic-detail-tab-content.hidden{display:none}
+.narcotic-dept-filter-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;align-items:end}
+.narcotic-stock-summary#narcoticDeptStockSummaryAll{grid-template-columns:repeat(4,minmax(0,1fr));margin-top:0}
+.narcotic-manage-dept-layout{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(320px,.75fr);gap:18px;align-items:start}
+.narcotic-manage-dept-card{background:linear-gradient(180deg,#ffffff,#fbfdff);border:1px solid var(--line);border-radius:22px;padding:18px;box-shadow:var(--shadow-soft)}
+body.dark .narcotic-manage-dept-card{background:linear-gradient(180deg,#182334,#111927)}
+.narcotic-dept-manage-shell table{min-width:720px}
+.narcotic-dept-add-grid{gap:12px}
+.narcotic-dept-pill{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;background:var(--soft);border:1px solid var(--line);font-weight:800;color:var(--navy)}
+@media (max-width:1100px){.narcotic-top-grid,.narcotic-manage-dept-layout{grid-template-columns:1fr}.narcotic-smart-filters,.narcotic-dept-filter-grid{grid-template-columns:1fr 1fr}}
+@media (max-width:760px){.narcotic-smart-filters,.narcotic-dept-filter-grid{grid-template-columns:1fr}.narcotic-smart-chart-bars{min-height:240px}.narcotic-smart-bar-track{height:150px}}
+
+.simple-narcotic-dispensing{display:grid;gap:16px}
+.full-width-narcotic-entry{width:100%}
+.narcotic-recent-shell{max-height:none;overflow:visible}
+.narcotic-dept-manage-shell{max-height:none;overflow:visible}
+.narcotic-dept-manage-shell table{min-width:0;width:100%}
+.narcotic-dept-manage-shell th:last-child,.narcotic-dept-manage-shell td:last-child{text-align:center;width:140px}
+.narcotic-manage-dept-layout{display:grid;grid-template-columns:1.4fr .9fr;gap:18px;align-items:start}
+@media (max-width:1100px){.narcotic-manage-dept-layout{grid-template-columns:1fr}}
+
+
+/* Final requested narcotic department layout */
+.narcotic-dept-manage-shell{overflow-x:hidden!important;max-height:none}
+.narcotic-dept-manage-shell table{min-width:0!important;width:100%;table-layout:fixed}
+.narcotic-dept-manage-shell th,.narcotic-dept-manage-shell td{white-space:normal}
+.narcotic-dept-manage-shell th:nth-child(1), .narcotic-dept-manage-shell td:nth-child(1){width:60%}
+.narcotic-dept-manage-shell th:nth-child(2), .narcotic-dept-manage-shell td:nth-child(2){width:20%;text-align:center}
+.narcotic-dept-manage-shell th:nth-child(3), .narcotic-dept-manage-shell td:nth-child(3){width:20%;text-align:center}
+.narcotic-manage-dept-layout{grid-template-columns:1.5fr .9fr}
+.simple-narcotic-dispensing{display:grid;grid-template-columns:1fr;gap:18px}
+.full-width-narcotic-entry{width:100%}
+
+
+/* RX actions portal for narcotic/latest dropdown */
+.rx-actions-wrap{position:relative;display:inline-flex}
+.rx-actions-menu{display:none !important}
+.rx-actions-portal{
+  position:fixed;
+  min-width:190px;
+  background:var(--card);
+  border:1px solid var(--line);
+  border-radius:16px;
+  box-shadow:0 18px 42px rgba(28,55,90,.22);
+  padding:8px;
+  display:grid;
+  gap:6px;
+  z-index:2147483647 !important;
+}
+.rx-actions-portal button{width:100%;justify-content:flex-start}
+.rx-returned-label{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-width:120px;
+  min-height:42px;
+  padding:0 16px;
+  border-radius:14px;
+  border:1px solid #f2c1c1;
+  background:#fff2f2;
+  color:#d84a4a;
+  font-weight:700;
+}
+#narcoticRecentModal .wide-shell{
+  max-height:70vh;
+  overflow:auto;
+  border-radius:18px;
+}
+#narcoticRecentModal table{min-width:1040px}
+#narcoticRecentModal tbody tr:hover td{background:rgba(57,148,230,.05)}
+#narcoticDepartmentModal .narcotic-dept-filter-grid{margin-bottom:8px}
+
+.modal-toolbar .search-input[type="date"]{max-width:180px}
+
+.narcotic-internal-grid{grid-template-columns:.95fr 1.25fr}
+.narcotic-transactions-filters-grid{grid-template-columns:repeat(4,1fr)}
+@media (max-width:1280px){.narcotic-internal-grid,.narcotic-transactions-filters-grid{grid-template-columns:1fr}}
+
+
+.transaction-details-body{display:grid;gap:14px}
+.tx-detail-card{border:1px solid var(--line);border-radius:18px;padding:16px;background:var(--soft)}
+.tx-detail-title{font-size:18px;font-weight:800;color:var(--navy);margin-bottom:10px}
+.tx-detail-subtitle{font-size:14px;font-weight:800;color:var(--navy);margin:12px 0 8px}
+.tx-detail-row{display:grid;grid-template-columns:180px 1fr;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)}
+.tx-detail-row:last-child{border-bottom:none}
+.tx-detail-table{min-width:100%;border-collapse:collapse}
+.tx-detail-table th,.tx-detail-table td{padding:10px;border:1px solid var(--line);white-space:normal}
+
+
+/* Added narcotic inpatient stock re-layout */
+.narcotic-internal-layout{display:grid;grid-template-columns:1fr;gap:18px}
+.narcotic-internal-receive-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;align-items:end}
+.narcotic-internal-stock-shell{max-height:62vh}
+.narcotic-internal-stock-shell table{min-width:100%}
+.narcotic-internal-stock-shell th:last-child,.narcotic-internal-stock-shell td:last-child{text-align:center}
+.narcotic-manage-cards-grid{margin-bottom:16px}
+.narcotic-dept-modal-head-extended{display:grid;grid-template-columns:minmax(240px,.8fr) minmax(0,1.2fr);gap:18px;align-items:end;margin-bottom:14px}
+.narcotic-dept-info-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;align-items:end}
+.narcotic-dept-name-card{padding:18px;border:1px solid var(--line);border-radius:20px;background:linear-gradient(180deg,#fff,#f8fbff);box-shadow:var(--shadow-soft)}
+body.dark .narcotic-dept-name-card{background:linear-gradient(180deg,#182334,#101927)}
+.narcotic-dept-name-label{display:block;font-size:12px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px}
+.narcotic-department-card{cursor:pointer}
+.narcotic-drug-card{cursor:pointer}
+@media (max-width:1100px){.narcotic-internal-receive-grid,.narcotic-dept-info-grid,.narcotic-dept-modal-head-extended{grid-template-columns:1fr}}
+
+
+#drugModal{width:min(96vw,1320px)}
+#drugModal .modal-body{max-height:78vh;overflow-y:auto;scroll-behavior:smooth}
+#drugModal .drug-filter-grid{margin:10px 0 8px}
+#drugModal .compact-drug-actions{margin:0 0 12px}
+#drugModal .small-drug-table{max-height:52vh}
+.narcotic-internal-stock-card .toolbar-inline{justify-content:flex-end}
+@media (max-width:980px){
+  #drugModal .modal-body{max-height:82vh}
+}
+
+
+.user-cards-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin-top:14px}
+.user-card-item{width:100%;text-align:left;padding:18px;border:1px solid var(--line);border-radius:20px;background:linear-gradient(180deg,#fff,#f8fbff);box-shadow:var(--shadow-soft);cursor:pointer;transition:.18s ease;color:var(--text)}
+body.dark .user-card-item{background:linear-gradient(180deg,#1a2638,#101927)}
+.user-card-item:hover,.user-card-item.selected{transform:translateY(-2px);border-color:var(--blue);box-shadow:0 12px 26px rgba(57,148,230,.14)}
+.user-card-top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+.user-card-name{font-weight:800;color:var(--navy);font-size:17px}
+.user-card-meta{font-size:13px;color:var(--muted);margin-top:6px;line-height:1.5}
+.status-chip{display:inline-flex;align-items:center;justify-content:center;padding:7px 12px;border-radius:999px;font-size:12px;font-weight:800;border:1px solid var(--line)}
+.status-chip.active{background:#eefaf4;color:#13795b;border-color:#b7e2cb}
+.status-chip.inactive{background:#fff2f2;color:#b4233a;border-color:#efc1c1}
+.role-grid .checkbox-item{min-height:54px}
+
+
+/* === 2026 sidebar + visual refresh override === */
+:root{
+  --bg:#edf0f4;
+  --card:rgba(255,255,255,.92);
+  --soft:#f4f5f7;
+  --line:#e4e7ec;
+  --line-strong:#d5dae2;
+  --text:#16181d;
+  --muted:#6d7482;
+  --navy:#17181c;
+  --blue:#181a1f;
+  --blue-strong:#0f1115;
+  --shadow:0 18px 45px rgba(15,17,21,.08);
+  --shadow-soft:0 10px 28px rgba(15,17,21,.06);
+}
+body.dark{
+  --bg:#111317;
+  --card:rgba(22,24,29,.92);
+  --soft:#181b21;
+  --line:#262a32;
+  --line-strong:#313641;
+  --text:#f4f6f8;
+  --muted:#9ca5b3;
+  --navy:#f7f8fa;
+  --blue:#f4f5f7;
+  --blue-strong:#d9dde5;
+  --shadow:0 20px 50px rgba(0,0,0,.34);
+  --shadow-soft:0 12px 28px rgba(0,0,0,.24);
+}
+html,body{background:var(--bg)}
+body{padding:0 20px 20px}
+.app-header{backdrop-filter:blur(18px);background:rgba(255,255,255,.75);border:1px solid rgba(255,255,255,.65);border-radius:0 0 24px 24px;box-shadow:var(--shadow-soft);margin:0 auto 12px;max-width:1540px}
+body.dark .app-header{background:rgba(17,19,23,.82);border-color:rgba(255,255,255,.06)}
+.app-title{font-size:15px;letter-spacing:.08em;text-transform:uppercase}
+body.app-authenticated .app-header{display:none}
+#appShell.page{max-width:1540px;padding:8px 0 0 0;position:relative}
+#appShell .page-block{margin-left:312px;padding:8px 0 0}
+.main-nav-card{position:fixed;left:calc(50% - 770px);top:20px;width:280px;height:calc(100vh - 40px);display:flex;flex-direction:column;gap:18px;align-items:stretch;padding:22px;background:rgba(255,255,255,.72);border:1px solid rgba(255,255,255,.65);backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px);box-shadow:0 22px 60px rgba(15,17,21,.12);border-radius:30px;overflow:visible}
+body.dark .main-nav-card{background:rgba(15,17,21,.86);border-color:rgba(255,255,255,.06)}
+.sidebar-brand{display:flex;align-items:center;gap:14px;padding:6px 4px 2px}
+.sidebar-logo{width:54px;height:54px;border-radius:18px;background:linear-gradient(180deg,#1f2228,#090b0f);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:900;letter-spacing:.08em;box-shadow:inset 0 1px 0 rgba(255,255,255,.2),0 10px 22px rgba(15,17,21,.18)}
+.sidebar-title{font-size:17px;font-weight:800;color:var(--navy)}
+.sidebar-subtitle{font-size:12px;color:var(--muted);margin-top:3px}
+.nav-label{font-size:12px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.14em;padding:0 8px}
+.nav-links{display:flex;flex-direction:column;gap:8px;align-items:stretch;flex-wrap:nowrap}
+.nav-link{width:100%;display:flex;align-items:center;gap:12px;justify-content:flex-start;padding:14px 16px;border-radius:18px;border:1px solid transparent;color:var(--text);background:transparent;font-weight:700}
+.nav-link .nav-emoji{display:inline-flex;align-items:center;justify-content:center;width:22px;opacity:.75}
+.nav-link:hover{background:rgba(255,255,255,.44);border-color:rgba(0,0,0,.06);transform:none}
+body.dark .nav-link:hover{background:rgba(255,255,255,.04);border-color:rgba(255,255,255,.05)}
+.nav-link.active{background:linear-gradient(180deg,#1c1f26 0%, #0d0f13 100%);color:#fff;border-color:rgba(255,255,255,.08);box-shadow:0 12px 26px rgba(15,17,21,.18), inset 0 1px 0 rgba(255,255,255,.12)}
+body.dark .nav-link.active{background:linear-gradient(180deg,#f4f6f8 0%, #d8dde4 100%);color:#111317}
+.nav-actions{margin-top:auto;justify-content:stretch}
+.user-menu-wrap{width:100%}
+.menu-trigger{width:100%;min-width:0;display:flex;align-items:center;gap:12px;justify-content:flex-start;padding:14px 16px;border-radius:22px;background:rgba(255,255,255,.54);border:1px solid rgba(0,0,0,.06);box-shadow:inset 0 1px 0 rgba(255,255,255,.72)}
+body.dark .menu-trigger{background:rgba(255,255,255,.04);border-color:rgba(255,255,255,.06);box-shadow:none}
+.sidebar-user-avatar{width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:linear-gradient(180deg,#dfe3ea,#cfd5de);font-size:18px;flex:0 0 42px}
+body.dark .sidebar-user-avatar{background:linear-gradient(180deg,#2a2f39,#1c2027)}
+.sidebar-user-meta{display:flex;flex-direction:column;align-items:flex-start;min-width:0;flex:1}
+.sidebar-user-meta strong,.sidebar-user-meta small{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sidebar-user-meta strong{font-size:14px;color:var(--text)}
+.sidebar-user-meta small{font-size:12px;color:var(--muted);margin-top:2px}
+.sidebar-user-caret{font-size:14px;color:var(--muted)}
+.user-menu-dropdown{top:auto;bottom:calc(100% + 12px);left:0;right:0;min-width:0;padding:12px;border-radius:24px;background:rgba(255,255,255,.94);border:1px solid rgba(0,0,0,.06);backdrop-filter:blur(20px);box-shadow:0 24px 50px rgba(15,17,21,.16)}
+body.dark .user-menu-dropdown{background:rgba(22,24,29,.96);border-color:rgba(255,255,255,.06)}
+.menu-item-btn{border-radius:16px;background:transparent;border:1px solid transparent;padding:13px 14px}
+.menu-item-btn:hover{background:var(--soft)}
+.panel-card,.stat-box,.login-shell,.modal{background:rgba(255,255,255,.72);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,.7);box-shadow:var(--shadow);border-radius:28px}
+body.dark .panel-card,body.dark .stat-box,body.dark .login-shell,body.dark .modal{background:rgba(22,24,29,.84);border-color:rgba(255,255,255,.06)}
+.box-head,.modal-header{background:linear-gradient(180deg,rgba(255,255,255,.5),rgba(255,255,255,.18));color:var(--navy);border-bottom:1px solid var(--line)}
+body.dark .box-head,body.dark .modal-header{background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(255,255,255,.02));color:var(--navy)}
+.modal{border-radius:30px;overflow:hidden}
+.modal-header{padding:18px 22px;font-size:18px;font-weight:800}
+.modal-body{padding:22px}
+.modal-actions{padding:0 22px 22px}
+.field input,.field select,.field textarea,.search-input{background:rgba(255,255,255,.84);border:1px solid rgba(18,20,24,.08);border-radius:16px;min-height:48px;box-shadow:inset 0 1px 0 rgba(255,255,255,.65)}
+body.dark .field input,body.dark .field select,body.dark .field textarea,body.dark .search-input{background:rgba(255,255,255,.04);border-color:rgba(255,255,255,.08);box-shadow:none}
+.primary-btn{background:linear-gradient(180deg,#1e2229 0%, #0c0f14 100%);border:1px solid rgba(255,255,255,.08);color:#fff;border-radius:16px;box-shadow:0 14px 30px rgba(15,17,21,.15)}
+body.dark .primary-btn{background:linear-gradient(180deg,#f7f8fa 0%, #d7dde5 100%);color:#111317}
+.soft-btn,.tab-btn,.action-tile{background:rgba(255,255,255,.58);border:1px solid rgba(0,0,0,.06);border-radius:16px}
+body.dark .soft-btn,body.dark .tab-btn,body.dark .action-tile{background:rgba(255,255,255,.04);border-color:rgba(255,255,255,.06)}
+.tab-btn.active{background:linear-gradient(180deg,#1e2229 0%, #0b0d12 100%);color:#fff}
+body.dark .tab-btn.active{background:linear-gradient(180deg,#f4f6f8 0%, #d9dde5 100%);color:#111317}
+.table-shell{border-radius:22px;border:1px solid rgba(0,0,0,.06);background:rgba(255,255,255,.44);box-shadow:inset 0 1px 0 rgba(255,255,255,.55)}
+body.dark .table-shell{background:rgba(255,255,255,.03);border-color:rgba(255,255,255,.05);box-shadow:none}
+th{background:rgba(255,255,255,.7);backdrop-filter:blur(12px);border-bottom:1px solid rgba(0,0,0,.06);font-size:12px;letter-spacing:.04em;text-transform:uppercase}
+body.dark th{background:rgba(255,255,255,.04);border-bottom-color:rgba(255,255,255,.06)}
+td{border-bottom:1px solid rgba(0,0,0,.05)}
+body.dark td{border-bottom-color:rgba(255,255,255,.05)}
+tr:hover td{background:rgba(17,19,23,.03)}
+body.dark tr:hover td{background:rgba(255,255,255,.03)}
+.drug-card,.login-card,.action-tile{background:rgba(255,255,255,.64);border:1px solid rgba(0,0,0,.06);border-radius:24px}
+body.dark .drug-card,body.dark .login-card,body.dark .action-tile{background:rgba(255,255,255,.04);border-color:rgba(255,255,255,.06)}
+.metric-value{font-size:42px}
+.badge,.scope-chip{background:rgba(255,255,255,.62);border:1px solid rgba(0,0,0,.06);color:var(--text)}
+body.dark .badge,body.dark .scope-chip{background:rgba(255,255,255,.04);border-color:rgba(255,255,255,.06)}
+.overlay{backdrop-filter:blur(8px);background:rgba(10,12,16,.24)}
+.audit-menu-portal,.audit-menu,.user-menu-dropdown{border-color:rgba(0,0,0,.06)!important}
+body.dark .audit-menu-portal,body.dark .audit-menu,body.dark .user-menu-dropdown{border-color:rgba(255,255,255,.06)!important}
+@media (max-width:1540px){
+  .main-nav-card{left:20px}
+  #appShell .page-block{margin-left:300px}
+}
+@media (max-width:1180px){
+  body{padding:0 14px 14px}
+  .main-nav-card{position:relative;left:auto;top:auto;width:100%;height:auto;margin-bottom:16px}
+  #appShell .page-block{margin-left:0;padding-top:0}
+  .nav-links{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+  .nav-actions{margin-top:0}
+}
+@media (max-width:780px){
+  .nav-links{grid-template-columns:1fr}
+  .page{padding:14px}
+  .modal,.modal.wide{width:min(96vw,96vw)}
+}
+
+
+/* === v2 sidebar + full theme coverage === */
+:root{
+  --glass-bg:rgba(255,255,255,.72);
+  --glass-border:rgba(255,255,255,.7);
+  --sidebar-bg:rgba(255,255,255,.82);
+  --sidebar-border:rgba(255,255,255,.68);
+  --sidebar-active-bg:linear-gradient(180deg,#1e2229 0%, #0b0d12 100%);
+  --sidebar-active-text:#ffffff;
+  --input-bg:rgba(255,255,255,.86);
+  --input-border:rgba(18,20,24,.08);
+  --table-bg:rgba(255,255,255,.44);
+  --table-head-bg:rgba(255,255,255,.7);
+  --row-hover:rgba(17,19,23,.03);
+  --soft-surface:rgba(255,255,255,.58);
+  --soft-border:rgba(0,0,0,.06);
+  --menu-bg:rgba(255,255,255,.94);
+}
+body.theme-dark{
+  --glass-bg:rgba(22,24,29,.84);
+  --glass-border:rgba(255,255,255,.06);
+  --sidebar-bg:rgba(15,17,21,.9);
+  --sidebar-border:rgba(255,255,255,.06);
+  --sidebar-active-bg:linear-gradient(180deg,#f4f6f8 0%, #d8dde4 100%);
+  --sidebar-active-text:#111317;
+  --input-bg:rgba(255,255,255,.04);
+  --input-border:rgba(255,255,255,.08);
+  --table-bg:rgba(255,255,255,.03);
+  --table-head-bg:rgba(255,255,255,.04);
+  --row-hover:rgba(255,255,255,.03);
+  --soft-surface:rgba(255,255,255,.04);
+  --soft-border:rgba(255,255,255,.06);
+  --menu-bg:rgba(22,24,29,.96);
+}
+body.theme-blue{
+  --glass-bg:rgba(255,255,255,.78);
+  --glass-border:rgba(202,220,245,.86);
+  --sidebar-bg:linear-gradient(180deg,rgba(244,248,255,.96) 0%, rgba(233,241,252,.94) 100%);
+  --sidebar-border:rgba(188,209,237,.92);
+  --sidebar-active-bg:linear-gradient(180deg,#2f84dd 0%, #216bbb 100%);
+  --sidebar-active-text:#ffffff;
+  --input-bg:rgba(255,255,255,.93);
+  --input-border:rgba(193,213,239,.95);
+  --table-bg:rgba(255,255,255,.56);
+  --table-head-bg:rgba(243,248,255,.96);
+  --row-hover:rgba(47,132,221,.06);
+  --soft-surface:rgba(255,255,255,.76);
+  --soft-border:rgba(193,213,239,.9);
+  --menu-bg:rgba(247,250,255,.98);
+}
+body.theme-green{
+  --glass-bg:rgba(255,255,255,.78);
+  --glass-border:rgba(211,232,217,.9);
+  --sidebar-bg:linear-gradient(180deg,rgba(244,251,246,.98) 0%, rgba(235,247,239,.95) 100%);
+  --sidebar-border:rgba(191,220,200,.95);
+  --sidebar-active-bg:linear-gradient(180deg,#2aa569 0%, #1f8856 100%);
+  --sidebar-active-text:#ffffff;
+  --input-bg:rgba(255,255,255,.93);
+  --input-border:rgba(191,220,200,.95);
+  --table-bg:rgba(255,255,255,.58);
+  --table-head-bg:rgba(244,251,246,.98);
+  --row-hover:rgba(42,165,105,.06);
+  --soft-surface:rgba(255,255,255,.78);
+  --soft-border:rgba(191,220,200,.95);
+  --menu-bg:rgba(247,252,248,.98);
+}
+body{padding:0 18px 18px}
+#appShell.page{max-width:none;width:100%;padding:0}
+#appShell .page-block{margin-left:330px;padding:8px 0 0;width:calc(100% - 330px)}
+.main-nav-card{
+  left:18px;
+  top:18px;
+  width:292px;
+  height:calc(100vh - 36px);
+  background:var(--sidebar-bg);
+  border:1px solid var(--sidebar-border);
+}
+.sidebar-brand{padding:2px 0 10px;justify-content:center}
+.sidebar-logo-image{
+  width:220px;
+  max-width:100%;
+  height:auto;
+  display:block;
+  object-fit:contain;
+  filter:drop-shadow(0 10px 24px rgba(20,31,56,.12));
+}
+.sidebar-title{color:var(--navy)}
+.panel-card,.stat-box,.login-shell,.modal,.main-nav-card{
+  background:var(--glass-bg);
+  border-color:var(--glass-border);
+}
+.user-menu-dropdown,.audit-menu-portal,.audit-menu{
+  background:var(--menu-bg) !important;
+}
+.field input,.field select,.field textarea,.search-input{
+  background:var(--input-bg);
+  border-color:var(--input-border);
+  color:var(--text);
+}
+.table-shell{
+  background:var(--table-bg);
+  border-color:var(--soft-border);
+}
+th{background:var(--table-head-bg)}
+tr:hover td{background:var(--row-hover)}
+.soft-btn,.tab-btn,.action-tile,.badge,.scope-chip,.menu-trigger,.theme-choice,.user-card-item,.checkbox-item{
+  background:var(--soft-surface);
+  border-color:var(--soft-border);
+  color:var(--text);
+}
+.nav-link:hover{background:var(--soft-surface);border-color:var(--soft-border)}
+.nav-link.active{
+  background:var(--sidebar-active-bg);
+  color:var(--sidebar-active-text);
+}
+.primary-btn{
+  background:var(--sidebar-active-bg);
+  color:var(--sidebar-active-text);
+}
+.tab-btn.active{background:var(--sidebar-active-bg);color:var(--sidebar-active-text)}
+.box-head,.modal-header{background:linear-gradient(180deg,var(--soft-surface), rgba(255,255,255,.08));color:var(--navy)}
+.audit-shell,
+.audit-shell table thead th,
+.audit-shell table tbody tr,
+.audit-note,
+.user-card-item,
+.narcotic-department-card,
+.narcotic-drug-card,
+.department-card,
+.chart-card,
+.transaction-detail-card,
+.transaction-detail-box,
+.rx-actions-menu,
+.rx-actions-portal,
+.confirmation-summary,
+.report-preview-shell,
+.report-preview-card,
+.report-summary-card,
+.print-hero,
+.print-summary-card,
+.narcotic-summary-card,
+.narcotic-kpi-card,
+.dept-drug-row,
+.dept-drug-card,
+.narcotic-mini-card,
+.narcotic-order-card,
+.narcotic-report-card,
+.narcotic-drug-pill,
+.info-card,
+.detail-card,
+.detail-shell,
+.batch-list-pane,
+.batch-entry-pane,
+.narcotic-internal-receive-card,
+.narcotic-internal-stock-card,
+.chart-shell,
+.settings-card,
+.user-editor-shell,
+.control-box,
+.stat-box,
+.panel-card{
+  color:var(--text);
+}
+.audit-shell{background:var(--glass-bg);border-color:var(--glass-border)}
+.audit-shell table thead th{background:var(--table-head-bg);border-bottom-color:var(--soft-border)}
+.audit-shell table tbody tr{background:transparent}
+.audit-note{background:var(--input-bg);border-color:var(--input-border);color:var(--text)}
+.sidebar-user-avatar{background:linear-gradient(180deg,var(--soft-surface), rgba(0,0,0,.08))}
+body.theme-dark .sidebar-user-avatar{background:linear-gradient(180deg,rgba(255,255,255,.09), rgba(255,255,255,.03))}
+body.theme-blue .sidebar-user-avatar{background:linear-gradient(180deg,#e6f0ff,#d7e6fb)}
+body.theme-green .sidebar-user-avatar{background:linear-gradient(180deg,#e8f6ed,#d7ebdf)}
+.app-header{display:none}
+@media (max-width: 1680px){
+  #appShell .page-block{margin-left:320px;width:calc(100% - 320px)}
+  .main-nav-card{width:284px}
+}
+@media (max-width: 1280px){
+  body{padding:12px}
+  #appShell .page-block{margin-left:0;width:100%;padding-top:98px}
+  .main-nav-card{
+    position:fixed;
+    left:12px;
+    right:12px;
+    top:12px;
+    width:auto;
+    height:auto;
+    min-height:0;
+    max-height:72px;
+    border-radius:24px;
+    flex-direction:row;
+    align-items:center;
+    gap:12px;
+    padding:12px 14px;
+    overflow:auto hidden;
+  }
+  .sidebar-brand{padding:0;justify-content:flex-start;flex:0 0 auto}
+  .sidebar-logo-image{width:126px}
+  .nav-label{display:none}
+  .nav-links{flex-direction:row;gap:8px;overflow:auto;padding-bottom:2px}
+  .nav-link{width:auto;white-space:nowrap;padding:12px 14px}
+  .nav-actions{margin-top:0;margin-inline-start:auto;flex:0 0 auto}
+  .user-menu-dropdown{left:auto;right:0;top:calc(100% + 10px);bottom:auto;min-width:240px}
+}
+
+
+/* ===== Patients page + dose intelligence ===== */
+.patients-page-shell{display:grid;gap:18px}
+.patients-filters-grid{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:14px 16px;
+  align-items:end;
+}
+.patients-filters-grid .field-span-2{grid-column:span 2}
+.patients-summary-grid{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:14px;
+}
+.patients-summary-card,
+.dose-preview-card,
+.duplicate-info-card{
+  padding:16px 18px;
+  border-radius:18px;
+  background:var(--soft);
+  border:1px solid var(--line);
+  box-shadow:var(--shadow-soft);
+}
+.patients-summary-label,
+.duplicate-card-label,
+.dose-preview-card span{
+  display:block;
+  font-size:12px;
+  font-weight:800;
+  letter-spacing:.04em;
+  text-transform:uppercase;
+  color:var(--muted);
+}
+.patients-summary-value,
+.duplicate-card-value,
+.dose-preview-card strong{
+  display:block;
+  margin-top:8px;
+  font-size:24px;
+  line-height:1.2;
+  font-weight:900;
+  color:var(--navy);
+}
+.patients-table-shell{max-height:68vh}
+.patients-table-shell table{min-width:1200px}
+.patient-row-toggle{
+  width:36px;height:36px;border-radius:12px;border:1px solid var(--line);
+  background:var(--soft);color:var(--navy);font-weight:900;cursor:pointer
+}
+.patient-detail-row td{padding:0;background:transparent !important}
+.patient-detail-card{
+  padding:18px;
+  margin:6px 10px 14px;
+  border:1px solid var(--line);
+  border-radius:20px;
+  background:linear-gradient(180deg,var(--card),var(--soft));
+  box-shadow:var(--shadow-soft);
+}
+.patient-detail-grid{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:12px 16px;
+}
+.patient-detail-item{
+  padding:14px;border-radius:16px;border:1px solid var(--line);
+  background:rgba(255,255,255,.4)
+}
+body.dark .patient-detail-item{background:rgba(255,255,255,.03)}
+.patient-detail-item span{
+  display:block;font-size:12px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em
+}
+.patient-detail-item strong{display:block;margin-top:6px;font-size:14px;color:var(--text);line-height:1.45}
+.patient-detail-actions{
+  display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;margin-top:16px
+}
+.patient-match-chip,
+.patient-status-chip,
+.duplicate-severity-chip{
+  display:inline-flex;align-items:center;justify-content:center;padding:8px 12px;border-radius:999px;font-size:12px;font-weight:800;border:1px solid var(--line)
+}
+.patient-status-chip.active{background:rgba(19,121,91,.12);color:var(--success);border-color:rgba(19,121,91,.25)}
+.patient-status-chip.finishing-soon{background:rgba(201,131,8,.12);color:#a96c00;border-color:rgba(201,131,8,.22)}
+.patient-status-chip.finished,.patient-status-chip.returned{background:rgba(180,35,58,.10);color:var(--danger);border-color:rgba(180,35,58,.22)}
+.patient-status-chip.no-dose{background:rgba(57,148,230,.12);color:var(--blue-strong);border-color:rgba(57,148,230,.22)}
+.patient-match-chip.exact{background:rgba(19,121,91,.12);color:var(--success)}
+.patient-match-chip.scientific{background:rgba(180,35,58,.10);color:var(--danger)}
+.dose-prescription-summary{
+  padding:14px 16px;border-radius:16px;background:var(--soft);border:1px solid var(--line);
+  margin-bottom:14px;font-weight:700;color:var(--text)
+}
+.dose-preview-grid{
+  display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-top:14px
+}
+.dose-history-shell{margin-top:16px}
+.dose-history-list{display:grid;gap:10px;margin-top:12px}
+.dose-history-item{
+  padding:14px 16px;border-radius:16px;border:1px solid var(--line);background:var(--soft)
+}
+.dose-history-item strong{display:block;color:var(--navy);margin-bottom:4px}
+.dose-history-item .subline{margin-top:0}
+.duplicate-modal-header{
+  display:flex;align-items:flex-start;justify-content:space-between;gap:16px;
+  background:linear-gradient(180deg,#8b1e30,#b4233a)
+}
+.duplicate-modal-subtitle{font-size:12px;font-weight:700;color:rgba(255,255,255,.84);margin-top:6px}
+.duplicate-severity-chip{background:rgba(255,255,255,.14);border-color:rgba(255,255,255,.18);color:#fff}
+.duplicate-severity-chip.critical{background:rgba(255,255,255,.18)}
+.duplicate-severity-chip.warning{background:rgba(255,255,255,.12)}
+.duplicate-modal-body{display:grid;gap:16px}
+.duplicate-top-grid{
+  display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px
+}
+.duplicate-warning-message{
+  padding:14px 16px;border-radius:16px;background:rgba(180,35,58,.08);border:1px solid rgba(180,35,58,.18);
+  color:var(--danger);font-weight:800;margin-bottom:0
+}
+.duplicate-remaining-card{
+  padding:16px;border-radius:20px;background:rgba(180,35,58,.08);border:1px solid rgba(180,35,58,.18)
+}
+.duplicate-section-title{
+  font-size:13px;font-weight:900;color:var(--navy);letter-spacing:.04em;text-transform:uppercase;margin-bottom:10px
+}
+.duplicate-remaining-message{font-weight:700;color:var(--danger);margin-bottom:12px}
+.duplicate-history-shell{display:grid;gap:10px}
+.open-patient-profile-btn{white-space:nowrap}
+@media (max-width:1280px){
+  .patients-filters-grid,
+  .patients-summary-grid,
+  .patient-detail-grid,
+  .dose-preview-grid,
+  .duplicate-top-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media (max-width:760px){
+  .patients-filters-grid,
+  .patients-summary-grid,
+  .patient-detail-grid,
+  .dose-preview-grid,
+  .duplicate-top-grid{grid-template-columns:1fr}
+}
+
+
+.patient-print-meta{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:16px}.patient-print-card{padding:14px 16px;border:1px solid var(--line);border-radius:16px;background:var(--soft)}.patient-print-card span{display:block;font-size:12px;font-weight:800;color:var(--muted);text-transform:uppercase}.patient-print-card strong{display:block;margin-top:6px;color:var(--text)}
+@media (max-width:760px){.patient-print-meta{grid-template-columns:1fr 1fr}}
