@@ -1,0 +1,61 @@
+{
+  "name": "narcotic-system-electron",
+  "version": "1.0.0",
+  "description": "Narcotic System desktop wrapper for the Google Sheets web app frontend.",
+  "main": "main.js",
+  "author": "OpenAI",
+  "license": "UNLICENSED",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win portable nsis"
+  },
+  "devDependencies": {
+    "electron": "^31.7.7",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.narcoticsystem.desktop",
+    "productName": "Narcotic System",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "index.html",
+      "style.css",
+      "app.js",
+      "config.js",
+      "logo.png",
+      "favicon.png",
+      "favicon.ico",
+      "apple-touch-icon.png",
+      "main.js"
+    ],
+    "asar": true,
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "favicon.ico"
+    },
+    "portable": {
+      "artifactName": "Narcotic-System-Portable-${version}.exe"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "artifactName": "Narcotic-System-Setup-${version}.exe"
+    }
+  }
+}
