@@ -1,46 +1,44 @@
-const { app, BrowserWindow, shell } = require('electron');
-const path = require('path');
+const { app, BrowserWindow, Menu, shell } = require("electron");
+const path = require("path");
 
 function createWindow() {
   const win = new BrowserWindow({
-    width: 1365,
+    width: 1400,
     height: 900,
     minWidth: 1100,
-    minHeight: 720,
-    show: false,
+    minHeight: 700,
     autoHideMenuBar: true,
-    backgroundColor: '#eef2f7',
-    title: 'Narcotic System',
-    icon: path.join(__dirname, 'favicon.ico'),
+    icon: path.join(__dirname, "favicon.ico"),
     webPreferences: {
       contextIsolation: true,
-      sandbox: true,
       nodeIntegration: false,
-      devTools: true,
-      spellcheck: false
-    }
+      sandbox: true
+    },
+    show: false
   });
 
-  win.once('ready-to-show', () => {
+  win.loadFile(path.join(__dirname, "index.html"));
+
+  win.once("ready-to-show", () => {
     win.show();
   });
 
   win.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url);
-    return { action: 'deny' };
+    return { action: "deny" };
   });
 
-  win.loadFile(path.join(__dirname, 'index.html'));
+  Menu.setApplicationMenu(null);
 }
 
 app.whenReady().then(() => {
   createWindow();
 
-  app.on('activate', () => {
+  app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
 });
 
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit();
+app.on("window-all-closed", () => {
+  if (process.platform !== "darwin") app.quit();
 });

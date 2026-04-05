@@ -1,10 +1,8 @@
 {
   "name": "narcotic-system-electron",
   "version": "1.0.0",
-  "description": "Narcotic System desktop wrapper for the Google Sheets web app frontend.",
+  "description": "Narcotic System desktop wrapper",
   "main": "main.js",
-  "author": "OpenAI",
-  "license": "UNLICENSED",
   "private": true,
   "scripts": {
     "start": "electron .",
