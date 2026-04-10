@@ -19,6 +19,11 @@ const ARCHIVE_WEBAPP_URL =
 const ARCHIVE_SECRET = "779911";
 
 const ARCHIVE_MONTHS_THRESHOLD = 3;
+const REALTIME_SYNC_FALLBACK_MS = 5000;
+const AUTO_ARCHIVE_STATUS_DOC_ID = "archive_status";
+const AUTO_ARCHIVE_LOCK_DOC_ID = "archive_lock";
+const AUTO_ARCHIVE_LOCK_MINUTES = 15;
+
 
 if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
   alert("Supabase config is missing. Open config.js and set SUPABASE_URL and SUPABASE_ANON_KEY first.");
@@ -183,10 +188,15 @@ function onSnapshot(ref, callback) {
       if (status === "SUBSCRIBED") emit();
     });
 
+  const fallbackTimer = setInterval(() => {
+    emit();
+  }, REALTIME_SYNC_FALLBACK_MS);
+
   emit();
 
   return () => {
     active = false;
+    clearInterval(fallbackTimer);
     supabase.removeChannel(channel);
   };
 }
@@ -302,6 +312,9 @@ const APP = {
   narcoticPendingOverflowRows: null,
   narcoticDetailTab: "stock",
   narcoticInternalAdjustDrugId: null,
+  syncEnhancementsStarted: false,
+  syncRefreshBusy: false,
+  autoArchiveCheckStarted: false,
   optimisticRenderSuspended: false,
   optimisticDirtyTables: new Set(),
   cache: {
@@ -543,8 +556,12 @@ async function archiveTableRows({
   };
 }
 
-async function archiveOldDataNow() {
-  showActionModal("Archive Data", "Please wait while old records are being archived to Google Sheets...");
+async function archiveOldDataNow(options = {}) {
+  const silent = !!options.silent;
+  const reason = options.reason || "manual";
+  if (!silent) {
+    showActionModal("Archive Data", "Please wait while old records are being archived to Google Sheets...");
+  }
 
   try {
     const results = [];
@@ -573,20 +590,163 @@ async function archiveOldDataNow() {
     ]);
 
     const totalArchived = results.reduce((sum, item) => sum + Number(item.archived || 0), 0);
-    finishActionModal(
-      true,
-      totalArchived
-        ? `Archive completed successfully. ${totalArchived} old row(s) moved to Google Sheets.`
-        : "Archive completed successfully. No rows older than 3 months were found."
-    );
+    await setDoc(doc(db, "app_meta", AUTO_ARCHIVE_STATUS_DOC_ID), {
+      lastCheckedAt: serverTimestamp(),
+      lastSuccessfulRunAt: serverTimestamp(),
+      lastReason: reason,
+      lastArchivedRows: totalArchived,
+      lastResults: results,
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+
+    if (!silent) {
+      finishActionModal(
+        true,
+        totalArchived
+          ? `Archive completed successfully. ${totalArchived} old row(s) moved to Google Sheets.`
+          : "Archive completed successfully. No rows older than 3 months were found."
+      );
+    }
     console.log("Archive Results:", results);
     return results;
   } catch (error) {
     console.error("Archive Error:", error);
-    finishActionModal(false, error?.message || "Archive failed.");
+    await setDoc(doc(db, "app_meta", AUTO_ARCHIVE_STATUS_DOC_ID), {
+      lastCheckedAt: serverTimestamp(),
+      lastFailedRunAt: serverTimestamp(),
+      lastReason: reason,
+      lastError: String(error?.message || error || "Archive failed"),
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+    if (!silent) {
+      finishActionModal(false, error?.message || "Archive failed.");
+    }
     throw error;
   }
 }
+
+function isArchiveDue(lastSuccessfulRunAt, months = ARCHIVE_MONTHS_THRESHOLD) {
+  if (!lastSuccessfulRunAt) return true;
+  return isOlderThanMonths(lastSuccessfulRunAt, months);
+}
+
+async function tryAcquireAutoArchiveLock(actorName = "system") {
+  const lockRef = doc(db, "app_meta", AUTO_ARCHIVE_LOCK_DOC_ID);
+  const token = crypto.randomUUID();
+  const now = new Date();
+  const nowMs = now.getTime();
+  const currentSnap = await getDoc(lockRef);
+  const current = currentSnap.exists() ? currentSnap.data() : {};
+  const expiresAtMs = new Date(current?.expiresAt || 0).getTime();
+  if (current?.locked && expiresAtMs > nowMs) {
+    return null;
+  }
+
+  await setDoc(lockRef, {
+    locked: true,
+    token,
+    lockedBy: actorName || "system",
+    lockedAt: serverTimestamp(),
+    expiresAt: new Date(nowMs + AUTO_ARCHIVE_LOCK_MINUTES * 60 * 1000).toISOString(),
+    updatedAt: serverTimestamp()
+  }, { merge: true });
+
+  const verifySnap = await getDoc(lockRef);
+  const verify = verifySnap.exists() ? verifySnap.data() : {};
+  if (verify?.token !== token) return null;
+  return token;
+}
+
+async function releaseAutoArchiveLock(token) {
+  if (!token) return;
+  const lockRef = doc(db, "app_meta", AUTO_ARCHIVE_LOCK_DOC_ID);
+  const snap = await getDoc(lockRef);
+  const data = snap.exists() ? snap.data() : {};
+  if (data?.token !== token) return;
+  await setDoc(lockRef, {
+    locked: false,
+    token: null,
+    releasedAt: serverTimestamp(),
+    updatedAt: serverTimestamp()
+  }, { merge: true });
+}
+
+async function runAutomaticArchiveIfDue() {
+  if (APP.currentRole !== "ADMIN") return false;
+  const statusSnap = await getDoc(doc(db, "app_meta", AUTO_ARCHIVE_STATUS_DOC_ID));
+  const status = statusSnap.exists() ? statusSnap.data() : {};
+  if (!isArchiveDue(status?.lastSuccessfulRunAt)) {
+    return false;
+  }
+
+  const token = await tryAcquireAutoArchiveLock(currentActorName() || "Admin");
+  if (!token) {
+    return false;
+  }
+
+  try {
+    await archiveOldDataNow({ silent: true, reason: "auto_admin_login" });
+    return true;
+  } finally {
+    await releaseAutoArchiveLock(token);
+  }
+}
+
+async function refreshCrossUserSyncNow() {
+  if (!APP.currentUser || APP.syncRefreshBusy) return;
+  APP.syncRefreshBusy = true;
+  try {
+    const tables = [
+      "drugs",
+      "inventory",
+      "prescriptions",
+      "transactions",
+      "users",
+      "app_settings"
+    ];
+    if (APP.currentRole === "ADMIN" || APP.currentPortal === "IN_PATIENT_USER") {
+      tables.push(
+        "narcotic_drugs",
+        "narcotic_departments",
+        "narcotic_department_stock",
+        "narcotic_prescriptions",
+        "narcotic_order_movements",
+        "narcotic_internal_stock"
+      );
+    }
+    await refreshTablesImmediate(tables);
+  } catch (error) {
+    console.error("Cross-user sync refresh failed:", error);
+  } finally {
+    APP.syncRefreshBusy = false;
+  }
+}
+
+function startRealtimeSyncEnhancements() {
+  if (APP.syncEnhancementsStarted) return;
+  APP.syncEnhancementsStarted = true;
+  window.addEventListener("focus", () => {
+    refreshCrossUserSyncNow();
+  });
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) refreshCrossUserSyncNow();
+  });
+}
+
+function queueAutomaticArchiveCheck() {
+  if (APP.autoArchiveCheckStarted || APP.currentRole !== "ADMIN") return;
+  APP.autoArchiveCheckStarted = true;
+  setTimeout(async () => {
+    try {
+      await runAutomaticArchiveIfDue();
+    } catch (error) {
+      console.error("Automatic archive check failed:", error);
+    } finally {
+      APP.autoArchiveCheckStarted = false;
+    }
+  }, 1500);
+}
+
 
 const q = id => document.getElementById(id);
 const esc = value => String(value ?? "").replace(/[&<>"']/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[ch]));
@@ -1194,6 +1354,8 @@ async function tryRestoreSession() {
   q("appShell").classList.remove("hidden");
   updateLayoutMode();
   showPage("dashboard");
+  startRealtimeSyncEnhancements();
+  queueAutomaticArchiveCheck();
 }
 
 function renderStaticOptions() {
@@ -2900,6 +3062,8 @@ async function doLogin(portalRole, employeeNumber, password) {
   q("appShell").classList.remove("hidden");
   updateLayoutMode();
   showPage("dashboard");
+  startRealtimeSyncEnhancements();
+  queueAutomaticArchiveCheck();
 
   if (user.mustChangePassword && loginMethod === "NORMAL") {
     finishActionModal(true, "Login successful. You must change your password now.");
@@ -6322,5 +6486,7 @@ if (q("loginEmployeeNumber")) q("loginEmployeeNumber").addEventListener("keydown
 if (q("loginPassword")) q("loginPassword").addEventListener("keydown", e => { if (e.key === "Enter") doLogin(APP.pendingRole, q("loginEmployeeNumber")?.value, q("loginPassword").value); });
 
 window.archiveOldDataNow = archiveOldDataNow;
+window.refreshCrossUserSyncNow = refreshCrossUserSyncNow;
+window.runAutomaticArchiveIfDue = runAutomaticArchiveIfDue;
 
 updateLayoutMode();
