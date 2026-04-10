@@ -14,7 +14,7 @@ const SUPABASE_ANON_KEY =
 const ARCHIVE_WEBAPP_URL =
   window.CDMS_CONFIG?.ARCHIVE_WEBAPP_URL ||
   window.APP_CONFIG?.ARCHIVE_WEBAPP_URL ||
-  "https://script.google.com/macros/s/AKfycbzEO4cluZJXAejmM92ND2iCkwHIVDQ-JDIQQzPJYcCh_rMrPgcluCelYVzr07r2o26O6w/exec";
+  "https://script.google.com/macros/s/AKfycbwa5gb8HKJ6hIWFgUVaIkOCI68a7YGld28E7yo9CZzqPxqpLa46D22BM8niNtqoJ9pyAw/exec";
 
 const ARCHIVE_SECRET = "779911";
 
@@ -348,30 +348,34 @@ APP.archiveView = {
   narcoticMovements: ARCHIVE_VIEW_MODES.ALL
 };
 
-APP.archiveCache = {
-  prescriptions: [],
-  transactions: [],
-  narcoticPrescriptions: [],
-  narcoticOrderMovements: [],
-  loadedAtMap: {
-    prescriptions: null,
-    transactions: null,
-    narcoticPrescriptions: null,
-    narcoticOrderMovements: null
-  },
-  loadingMap: {
-    prescriptions: false,
-    transactions: false,
-    narcoticPrescriptions: false,
-    narcoticOrderMovements: false
-  },
-  errorMap: {
-    prescriptions: "",
-    transactions: "",
-    narcoticPrescriptions: "",
-    narcoticOrderMovements: ""
-  }
-};
+function createArchiveCacheState() {
+  return {
+    prescriptions: [],
+    transactions: [],
+    narcoticPrescriptions: [],
+    narcoticOrderMovements: [],
+    loadedAtMap: {
+      prescriptions: null,
+      transactions: null,
+      narcoticPrescriptions: null,
+      narcoticOrderMovements: null
+    },
+    loadingMap: {
+      prescriptions: false,
+      transactions: false,
+      narcoticPrescriptions: false,
+      narcoticOrderMovements: false
+    },
+    errorMap: {
+      prescriptions: "",
+      transactions: "",
+      narcoticPrescriptions: "",
+      narcoticOrderMovements: ""
+    }
+  };
+}
+
+APP.archiveCache = createArchiveCacheState();
 
 
 function canCurrentUserTransfer() {
@@ -610,6 +614,69 @@ async function searchArchiveSheet(sheetName, params = {}) {
   const data = await fetchArchiveJsonp(sheetName, params);
   if (data?.success !== true) throw new Error(data?.error || `Archive search failed for ${sheetName}`);
   return Array.isArray(data.rows) ? data.rows : [];
+}
+
+
+function makeArchiveRowId(prefix, row, fallbackKeys = []) {
+  const parts = [prefix];
+  for (const key of fallbackKeys) {
+    const value = row?.[key];
+    if (value !== undefined && value !== null && String(value).trim() !== "") {
+      parts.push(String(value).trim());
+    }
+  }
+  if (row?.__archiveSheet) parts.push(String(row.__archiveSheet).trim());
+  return parts.join("_").replace(/[^a-zA-Z0-9_-]+/g, "_");
+}
+
+function normalizeArchivePrescriptionRow(row) {
+  return {
+    ...row,
+    id: row?.id || makeArchiveRowId("arch_rx", row, ["fileNumber", "drugId", "dateTime", "createdAt"]),
+    qtyBoxes: Number(row?.qtyBoxes || 0),
+    qtyUnits: Number(row?.qtyUnits || 0),
+    fileNumber: String(row?.fileNumber || "").trim(),
+    status: String(row?.status || "Registered").trim() || "Registered",
+    __archived: true,
+    __archiveType: "prescription"
+  };
+}
+
+function normalizeArchiveTransactionRow(row) {
+  return {
+    ...row,
+    id: row?.id || makeArchiveRowId("arch_tx", row, ["type", "drugId", "dateTime", "createdAt"]),
+    qtyBoxes: Number(row?.qtyBoxes || 0),
+    qtyUnits: Number(row?.qtyUnits || 0),
+    type: String(row?.type || "").trim(),
+    __archived: true,
+    __archiveType: "transaction"
+  };
+}
+
+function normalizeArchiveNarcoticPrescriptionRow(row) {
+  return {
+    ...row,
+    id: row?.id || makeArchiveRowId("arch_nrx", row, ["fileNumber", "drugId", "dateTime", "createdAt"]),
+    quantitySent: Number(row?.quantitySent || row?.dispensedUnits || 0),
+    dispensedUnits: Number(row?.dispensedUnits || row?.quantitySent || 0),
+    fileNumber: String(row?.fileNumber || "").trim(),
+    status: String(row?.status || "Registered").trim() || "Registered",
+    __archived: true,
+    __archiveType: "narcoticPrescription"
+  };
+}
+
+function normalizeArchiveNarcoticMovementRow(row) {
+  return {
+    ...row,
+    id: row?.id || makeArchiveRowId("arch_nom", row, ["type", "departmentId", "drugId", "dateTime", "createdAt"]),
+    quantitySent: Number(row?.quantitySent || 0),
+    emptyAmpoulesReceived: Number(row?.emptyAmpoulesReceived || 0),
+    type: String(row?.type || "Transfer").trim() || "Transfer",
+    __archived: true,
+    __archiveType: "narcoticOrderMovement"
+  };
 }
 
 function getArchiveBucketNameForView(viewKey) {
@@ -6647,7 +6714,7 @@ q("logoutBtn").onclick = () => {
   APP.currentRole = null;
   APP.currentUser = null;
   APP.currentUserDocId = null;
-  APP.archiveCache = { prescriptions: [], prescriptionDoses: [], transactions: [], narcoticPrescriptions: [], narcoticOrderMovements: [], loadedAt: null, loading: false };
+  APP.archiveCache = createArchiveCacheState();
   APP.currentPortal = null;
   APP.currentPharmacyScope = null;
   APP.loginMethod = null;
