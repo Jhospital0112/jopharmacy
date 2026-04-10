@@ -6277,10 +6277,10 @@ bindAutoTitleCaseInput([
   "transferReceiverPharmacist"
 ]);
 
-enableAutoFocusFlow(
-  ["quickPatient","quickFile","quickPrescriptionType","quickDrugSearch","quickDrug","quickBoxes","quickUnits","quickDoctor","quickPharmacist"],
-  () => registerQuickPrescription()
-);
+//enableAutoFocusFlow(
+ // ["quickPatient","quickFile","quickPrescriptionType","quickDrugSearch","quickDrug","quickBoxes","quickUnits","quickDoctor","quickPharmacist"],
+ // () => registerQuickPrescription()
+//);
 
 themeInit();
 ensureTransactionDetailsModal();
