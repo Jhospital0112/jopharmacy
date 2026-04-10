@@ -467,12 +467,33 @@ function isOlderThanMonths(dateTime, months = ARCHIVE_MONTHS_THRESHOLD) {
   return d < monthsAgoDate(months);
 }
 
-async function  const text = await res.text();
+async function postRowsToArchive(sheetName, rows) {
+  if (!rows?.length) {
+    return { success: true, inserted: 0, sheetName };
+  }
+
+  const res = await fetch(ARCHIVE_WEBAPP_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "text/plain;charset=utf-8"
+    },
+    body: JSON.stringify({
+      secret: ARCHIVE_SECRET,
+      sheetName,
+      rows
+    })
+  });
+
+  const text = await res.text();
   let data = {};
+
   try {
     data = JSON.parse(text || "{}");
   } catch (_) {
-    data = { success: false, error: text || "Invalid response from archive server" };
+    data = {
+      success: false,
+      error: text || "Invalid response from archive server"
+    };
   }
 
   if (!res.ok || data?.success !== true) {
