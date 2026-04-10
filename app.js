@@ -332,6 +332,33 @@ const APP = {
 };
 
 
+const ARCHIVE_VIEW_MODES = {
+  CURRENT: "current",
+  ARCHIVED: "archived",
+  ALL: "all"
+};
+
+APP.archiveView = {
+  patients: ARCHIVE_VIEW_MODES.ALL,
+  prescriptions: ARCHIVE_VIEW_MODES.ALL,
+  recentPrescriptions: ARCHIVE_VIEW_MODES.ALL,
+  drugInterface: ARCHIVE_VIEW_MODES.ALL,
+  transactions: ARCHIVE_VIEW_MODES.ALL,
+  narcoticPrescriptions: ARCHIVE_VIEW_MODES.ALL,
+  narcoticMovements: ARCHIVE_VIEW_MODES.ALL
+};
+
+APP.archiveCache = {
+  prescriptions: [],
+  prescriptionDoses: [],
+  transactions: [],
+  narcoticPrescriptions: [],
+  narcoticOrderMovements: [],
+  loadedAt: null,
+  loading: false
+};
+
+
 function canCurrentUserTransfer() {
   return APP.currentRole === "ADMIN" || !!APP.currentUser?.canTransfer;
 }
@@ -512,6 +539,191 @@ async function postRowsToArchive(sheetName, rows) {
   return data;
 }
 
+
+
+async function searchArchiveSheet(sheetName, params = {}) {
+  const url = new URL(ARCHIVE_WEBAPP_URL);
+  url.searchParams.set("action", "search_archive");
+  url.searchParams.set("secret", ARCHIVE_SECRET);
+  url.searchParams.set("sheetName", sheetName);
+  if (params.term) url.searchParams.set("term", String(params.term).trim());
+  if (params.type) url.searchParams.set("type", String(params.type).trim());
+  if (params.from) url.searchParams.set("from", String(params.from).trim());
+  if (params.to) url.searchParams.set("to", String(params.to).trim());
+  if (params.pharmacyScope) url.searchParams.set("pharmacyScope", String(params.pharmacyScope).trim());
+  const res = await fetch(url.toString(), { method: "GET" });
+  const data = await res.json();
+  if (!res.ok || data?.success !== true) throw new Error(data?.error || `Archive search failed for ${sheetName}`);
+  return Array.isArray(data.rows) ? data.rows : [];
+}
+
+function normalizeArchivePrescriptionRow(row) {
+  return {
+    ...row,
+    id: row.id || `arch_rx_${row.__archiveSheet || "prescriptions_archive"}_${String(row.dateTime || row.createdAt || Math.random()).replace(/[^\w-]+/g, "_")}_${String(row.fileNumber || "")}`,
+    qtyBoxes: Number(row.qtyBoxes || 0),
+    qtyUnits: Number(row.qtyUnits || 0),
+    __archived: true,
+    __archiveType: "prescription"
+  };
+}
+
+function normalizeArchiveTransactionRow(row) {
+  return {
+    ...row,
+    id: row.id || `arch_tx_${row.__archiveSheet || "transactions_archive"}_${String(row.dateTime || row.createdAt || Math.random()).replace(/[^\w-]+/g, "_")}_${String(row.type || "")}`,
+    qtyBoxes: Number(row.qtyBoxes || 0),
+    qtyUnits: Number(row.qtyUnits || 0),
+    __archived: true,
+    __archiveType: "transaction"
+  };
+}
+
+function normalizeArchiveNarcoticPrescriptionRow(row) {
+  return {
+    ...row,
+    id: row.id || `arch_nrx_${row.__archiveSheet || "narcotic_prescriptions_archive"}_${String(row.dateTime || Math.random()).replace(/[^\w-]+/g, "_")}_${String(row.fileNumber || "")}`,
+    dispensedUnits: Number(row.dispensedUnits || row.quantitySent || 0),
+    __archived: true,
+    __archiveType: "narcotic_prescription"
+  };
+}
+
+function normalizeArchiveNarcoticMovementRow(row) {
+  return {
+    ...row,
+    id: row.id || `arch_nom_${row.__archiveSheet || "narcotic_order_movements_archive"}_${String(row.dateTime || Math.random()).replace(/[^\w-]+/g, "_")}_${String(row.type || "")}`,
+    quantitySent: Number(row.quantitySent || 0),
+    quantityReceived: Number(row.quantityReceived || 0),
+    dispensedUnits: Number(row.dispensedUnits || 0),
+    emptyAmpoulesReceived: Number(row.emptyAmpoulesReceived || 0),
+    __archived: true,
+    __archiveType: "narcotic_movement"
+  };
+}
+
+async function loadArchiveCaches(force = false) {
+  if (APP.archiveCache.loading) return;
+  if (!force && APP.archiveCache.loadedAt) return;
+  APP.archiveCache.loading = true;
+  try {
+    const scope = APP.currentRole === "ADMIN" ? "" : currentScopePharmacy();
+    const [archivedPrescriptions, archivedTransactions, archivedNarcoticPrescriptions, archivedNarcoticMovements] = await Promise.all([
+      searchArchiveSheet("prescriptions_archive", { pharmacyScope: scope }),
+      searchArchiveSheet("transactions_archive", { pharmacyScope: scope }),
+      searchArchiveSheet("narcotic_prescriptions_archive", { pharmacyScope: scope }),
+      searchArchiveSheet("narcotic_order_movements_archive", { pharmacyScope: scope })
+    ]);
+    APP.archiveCache.prescriptions = archivedPrescriptions.map(normalizeArchivePrescriptionRow);
+    APP.archiveCache.transactions = archivedTransactions.map(normalizeArchiveTransactionRow);
+    APP.archiveCache.narcoticPrescriptions = archivedNarcoticPrescriptions.map(normalizeArchiveNarcoticPrescriptionRow);
+    APP.archiveCache.narcoticOrderMovements = archivedNarcoticMovements.map(normalizeArchiveNarcoticMovementRow);
+    APP.archiveCache.loadedAt = Date.now();
+  } catch (error) {
+    console.error("Archive cache load failed:", error);
+  } finally {
+    APP.archiveCache.loading = false;
+  }
+}
+
+function ensureArchiveCacheForMode(viewKey) {
+  const mode = APP.archiveView?.[viewKey] || ARCHIVE_VIEW_MODES.ALL;
+  if (mode !== ARCHIVE_VIEW_MODES.CURRENT && !APP.archiveCache.loadedAt && !APP.archiveCache.loading) {
+    loadArchiveCaches().then(() => renderAll()).catch(err => console.error(err));
+  }
+}
+
+function mergeArchiveRows(currentRows = [], archivedRows = [], mode = ARCHIVE_VIEW_MODES.ALL) {
+  if (mode === ARCHIVE_VIEW_MODES.CURRENT) return [...currentRows];
+  if (mode === ARCHIVE_VIEW_MODES.ARCHIVED) return [...archivedRows];
+  return [...currentRows, ...archivedRows];
+}
+
+function ensureArchiveToggleBar(viewKey, anchorEl, renderFn) {
+  if (!anchorEl) return;
+  const holderId = `archive_toggle_${viewKey}`;
+  let wrap = q(holderId);
+  if (!wrap) {
+    wrap = document.createElement("div");
+    wrap.id = holderId;
+    wrap.style.display = "flex";
+    wrap.style.alignItems = "center";
+    wrap.style.gap = "8px";
+    wrap.style.margin = "0 0 12px 0";
+    wrap.style.flexWrap = "wrap";
+    anchorEl.parentNode.insertBefore(wrap, anchorEl);
+  }
+  const currentMode = APP.archiveView?.[viewKey] || ARCHIVE_VIEW_MODES.ALL;
+  const makeBtn = (mode, label) => `<button type="button" class="soft-btn mini-btn ${currentMode === mode ? 'active' : ''}" data-archive-view-key="${viewKey}" data-archive-view-mode="${mode}">${label}</button>`;
+  wrap.innerHTML = `<span class="subline" style="font-weight:700">Data View</span>${makeBtn(ARCHIVE_VIEW_MODES.CURRENT, 'Current Data')}${makeBtn(ARCHIVE_VIEW_MODES.ARCHIVED, 'Archived Data')}${makeBtn(ARCHIVE_VIEW_MODES.ALL, 'All')}`;
+  wrap.querySelectorAll('[data-archive-view-mode]').forEach(btn => {
+    btn.onclick = async () => {
+      APP.archiveView[viewKey] = btn.dataset.archiveViewMode || ARCHIVE_VIEW_MODES.ALL;
+      if (APP.archiveView[viewKey] !== ARCHIVE_VIEW_MODES.CURRENT) await loadArchiveCaches();
+      if (typeof renderFn === 'function') renderFn();
+    };
+  });
+}
+
+function archivedBadge() {
+  return `<span class="badge pending">Archived</span>`;
+}
+
+function getScopedPrescriptionRows(viewKey = "prescriptions") {
+  ensureArchiveCacheForMode(viewKey);
+  const scope = currentScopePharmacy();
+  const currentRows = APP.currentRole === "ADMIN"
+    ? [...(APP.cache.prescriptions || [])]
+    : (APP.cache.prescriptions || []).filter(row => String(row.pharmacy || "") === String(scope));
+  const archivedRows = APP.currentRole === "ADMIN"
+    ? [...(APP.archiveCache.prescriptions || [])]
+    : (APP.archiveCache.prescriptions || []).filter(row => String(row.pharmacy || "") === String(scope));
+  return mergeArchiveRows(currentRows, archivedRows, APP.archiveView?.[viewKey] || ARCHIVE_VIEW_MODES.ALL)
+    .sort((a, b) => String(b.dateTime || b.createdAt || "").localeCompare(String(a.dateTime || a.createdAt || "")));
+}
+
+function getScopedTransactionRows(viewKey = "transactions") {
+  ensureArchiveCacheForMode(viewKey);
+  const scope = currentScopePharmacy();
+  const currentRows = APP.currentRole === "ADMIN"
+    ? [...(APP.cache.transactions || [])]
+    : (APP.cache.transactions || []).filter(row => row.pharmacy === scope || String(row.pharmacy || "").includes(scope));
+  const archivedRows = APP.currentRole === "ADMIN"
+    ? [...(APP.archiveCache.transactions || [])]
+    : (APP.archiveCache.transactions || []).filter(row => String(row.pharmacy || "") === String(scope) || String(row.pharmacy || "").includes(scope) || String(row.fromPharmacy || "") === String(scope) || String(row.toPharmacy || "") === String(scope));
+  return mergeArchiveRows(currentRows, archivedRows, APP.archiveView?.[viewKey] || ARCHIVE_VIEW_MODES.ALL)
+    .sort((a, b) => String(b.dateTime || b.createdAt || "").localeCompare(String(a.dateTime || a.createdAt || "")));
+}
+
+function getScopedNarcoticPrescriptionRows(viewKey = "narcoticPrescriptions") {
+  ensureArchiveCacheForMode(viewKey);
+  return mergeArchiveRows(
+    [...(APP.cache.narcoticPrescriptions || [])],
+    [...(APP.archiveCache.narcoticPrescriptions || [])],
+    APP.archiveView?.[viewKey] || ARCHIVE_VIEW_MODES.ALL
+  ).sort((a, b) => String(b.dateTime || "").localeCompare(String(a.dateTime || "")));
+}
+
+function getScopedNarcoticMovementRows(viewKey = "narcoticMovements") {
+  ensureArchiveCacheForMode(viewKey);
+  return mergeArchiveRows(
+    [...(APP.cache.narcoticOrderMovements || [])],
+    [...(APP.archiveCache.narcoticOrderMovements || [])],
+    APP.archiveView?.[viewKey] || ARCHIVE_VIEW_MODES.ALL
+  ).sort((a, b) => String(b.dateTime || "").localeCompare(String(a.dateTime || "")));
+}
+
+function getNormalTransactionById(id) {
+  return getScopedTransactionRows("transactions").find(item => String(item.id) === String(id));
+}
+
+function getNarcoticTransactionById(id) {
+  return getScopedNarcoticMovementRows("narcoticMovements").find(item => String(item.id) === String(id));
+}
+
+function canMutatePrescriptionRow(row) {
+  return !!row && !row.__archived;
+}
 
 async function archiveTableRows({
   sourceTable,
@@ -1098,15 +1310,12 @@ function sortDrugsAlphabetically(drugs) {
   return [...drugs].sort((a, b) => `${a.tradeName || ""} ${a.strength || ""}`.localeCompare(`${b.tradeName || ""} ${b.strength || ""}`));
 }
 
-function prescriptionScopeRows() {
-  const scope = currentScopePharmacy();
-  return APP.cache.prescriptions.filter(row => row.pharmacy === scope);
+function prescriptionScopeRows(viewKey = "prescriptions") {
+  return getScopedPrescriptionRows(viewKey);
 }
 
-function transactionScopeRows() {
-  if (APP.currentRole === "ADMIN") return [...(APP.cache.transactions || [])];
-  const scope = currentScopePharmacy();
-  return (APP.cache.transactions || []).filter(row => row.pharmacy === scope || String(row.pharmacy || "").includes(scope));
+function transactionScopeRows(viewKey = "transactions") {
+  return getScopedTransactionRows(viewKey);
 }
 
 function unitLabel(drug) {
@@ -1440,6 +1649,7 @@ async function tryRestoreSession() {
   q("appShell").classList.remove("hidden");
   updateLayoutMode();
   showPage("dashboard");
+  loadArchiveCaches(true).then(() => renderAll()).catch(err => console.error(err));
   startRealtimeSyncEnhancements();
   if (APP.currentRole === "ADMIN") loadArchiveStatus();
   queueAutomaticArchiveCheck();
@@ -1617,7 +1827,8 @@ function renderRecentPrescriptionsModal() {
   const to = q("recentPrescriptionsTo")?.value || "";
   const effectiveFrom = from || (!to ? jordanDateKey() : "");
   const effectiveTo = to || (!from ? jordanDateKey() : "");
-  const rows = prescriptionScopeRows()
+  ensureArchiveToggleBar("recentPrescriptions", q("recentPrescriptionsTbody")?.closest(".table-shell") || q("recentPrescriptionsTbody"), renderRecentPrescriptionsModal);
+  const rows = getScopedPrescriptionRows("recentPrescriptions")
     .filter(row => {
       const hay = `${row.patientName} ${row.fileNumber} ${row.doctorName} ${row.pharmacistName}`.toLowerCase();
       const drugHay = `${APP.cache.drugs.find(d => d.id === row.drugId)?.tradeName || ""} ${APP.cache.drugs.find(d => d.id === row.drugId)?.strength || ""}`.toLowerCase();
@@ -1641,7 +1852,7 @@ function renderRecentPrescriptionsModal() {
         <td>${esc(row.pharmacy || "")}</td>
         <td>${Number(row.qtyBoxes || 0)}</td>
         <td>${Number(row.qtyUnits || 0)}</td>
-        <td>${statusBadge(row.status || "Registered")}</td>
+        <td>${row.__archived ? archivedBadge() : statusBadge(row.status || "Registered")}</td>
         <td class="rx-actions-cell">${buildPrescriptionActionsDropdown(row, { prefix: "recent" })}</td>
       </tr>`;
   }).join("") || `<tr><td colspan="10" class="empty-state">No recent prescriptions found.</td></tr>`;
@@ -1660,7 +1871,8 @@ function getFilteredTransactionsRows() {
   const effectiveFrom = from || (!to ? jordanDateKey() : "");
   const effectiveTo = to || (!from ? jordanDateKey() : "");
 
-  return transactionScopeRows().filter(row => {
+  ensureArchiveToggleBar("transactions", q("transactionsTbody")?.closest(".table-shell") || q("transactionsTbody"), renderTransactions);
+  return getScopedTransactionRows("transactions").filter(row => {
     const haystack = `${row.type} ${row.tradeName} ${row.pharmacy} ${row.performedBy} ${row.note} ${row.receiverPharmacist || ""} ${row.receivedBy || ""} ${row.invoiceNumber || ""} ${row.invoiceDate || ""} ${row.patientName || ""} ${row.fileNumber || ""} ${row.doctorName || ""}`.toLowerCase();
     const day = formatJordanDateTime(row.dateTime).slice(0, 10);
     const normalizedType = String(row.type || "");
@@ -2143,13 +2355,14 @@ function printInventoryAuditReport() {
 
 function renderDashboard() {
   const scope = currentScopePharmacy();
-  const scopedPrescriptions = prescriptionScopeRows();
+  const scopedPrescriptions = getScopedPrescriptionRows("recentPrescriptions");
   const cardSearch = (q("drugCardsSearch").value || "").toLowerCase();
 
   const today = jordanDateKey();
-  q("metricRegistered").textContent = scopedPrescriptions.filter(p => formatJordanDateTime(p.dateTime).slice(0,10) === today).length;
-  q("metricPending").textContent = scopedPrescriptions.filter(p => (p.status || "") === "Pending" && formatJordanDateTime(p.dateTime).slice(0,10) === today).length;
-  q("metricReturned").textContent = scopedPrescriptions.filter(p => (p.status || "") === "Returned" && formatJordanDateTime(p.dateTime).slice(0,10) === today).length;
+  const dashboardCurrentRows = (APP.currentRole === "ADMIN" ? [...(APP.cache.prescriptions || [])] : (APP.cache.prescriptions || []).filter(p => String(p.pharmacy || "") === String(scope)));
+  q("metricRegistered").textContent = dashboardCurrentRows.filter(p => formatJordanDateTime(p.dateTime).slice(0,10) === today).length;
+  q("metricPending").textContent = dashboardCurrentRows.filter(p => (p.status || "") === "Pending" && formatJordanDateTime(p.dateTime).slice(0,10) === today).length;
+  q("metricReturned").textContent = dashboardCurrentRows.filter(p => (p.status || "") === "Returned" && formatJordanDateTime(p.dateTime).slice(0,10) === today).length;
 
   q("recentList").innerHTML = scopedPrescriptions.slice(0, 7).map(p => {
     const drug = APP.cache.drugs.find(d => d.id === p.drugId);
@@ -2163,7 +2376,7 @@ function renderDashboard() {
         <div class="subline">${esc(formatJordanDateTime(p.dateTime))}</div>
         <div class="subline">${Number(p.qtyBoxes || 0)} box(es) + ${Number(p.qtyUnits || 0)} ${esc(unitLabel(drug))}</div>
         <div class="recent-row-actions">
-          ${p.status === "Returned" ? statusBadge("Returned") : buildPrescriptionActionsDropdown(p, { prefix: "latest" })}
+          ${p.__archived ? archivedBadge() : (p.status === "Returned" ? statusBadge("Returned") : buildPrescriptionActionsDropdown(p, { prefix: "latest" }))}
         </div>
       </div>`;
   }).join("") || `<div class="empty-state">No prescriptions found for ${esc(scope)}.</div>`;
@@ -2269,7 +2482,7 @@ function renderTransactions() {
         <td>${Number(row.qtyUnits || 0)}</td>
         <td>${esc(by)}</td>
         <td>${esc(note)}</td>
-        <td><button class="soft-btn mini-btn transaction-details-btn" data-scope="normal" data-id="${esc(row.id)}">Details</button></td>
+        <td><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">${row.__archived ? archivedBadge() : ""}<button class="soft-btn mini-btn transaction-details-btn" data-scope="normal" data-id="${esc(row.id)}">Details</button></div></td>
       </tr>`;
   }).join("") || `<tr><td colspan="8" class="empty-state">No transactions found.</td></tr>`;
 }
@@ -2286,7 +2499,8 @@ function getFilteredPrescriptionsRows() {
   const effectiveTo = to || (!from ? jordanDateKey() : "");
   const drugId = q("prescriptionsDrugFilter")?.value || "";
   const pharmacyFilter = q("prescriptionsPharmacyFilter")?.value || "";
-  return (APP.cache.prescriptions || []).filter(row => {
+  ensureArchiveToggleBar("prescriptions", q("prescriptionsTbody")?.closest(".table-shell") || q("prescriptionsTbody"), renderPrescriptions);
+  return getScopedPrescriptionRows("prescriptions").filter(row => {
     if (!canViewPharmacy(row.pharmacy)) return false;
     const day = formatJordanDateTime(row.dateTime).slice(0,10);
     const drug = APP.cache.drugs.find(d => d.id === row.drugId);
@@ -2313,7 +2527,7 @@ function renderPrescriptions() {
       <td>${esc(row.pharmacy || "")}</td>
       <td>${Number(row.qtyBoxes || 0)}</td>
       <td>${Number(row.qtyUnits || 0)}</td>
-      <td>${statusBadge(row.status || "Registered")}</td>
+      <td>${row.__archived ? archivedBadge() : statusBadge(row.status || "Registered")}</td>
       <td class="rx-actions-cell">${buildPrescriptionActionsDropdown(row, { prefix: "prescriptions" })}</td>
     </tr>`;
   }).join("") || `<tr><td colspan="9" class="empty-state">No prescriptions found.</td></tr>`;
@@ -2875,7 +3089,8 @@ function findScientificNameSupply(fileNumber, drugId) {
   const scientificName = String(targetDrug?.scientificName || "").trim().toLowerCase();
   const targetStrength = String(targetDrug?.strength || "").trim().toLowerCase();
   if (!scientificName) return [];
-  return (APP.cache.prescriptions || [])
+  ensureArchiveToggleBar("patients", q("patientsTbody")?.closest(".table-shell") || q("patientsTbody"), renderPatientsPage);
+  return getScopedPrescriptionRows("patients")
     .filter(rx => normalizeFileNumber(rx.fileNumber) === normalizeFileNumber(fileNumber))
     .filter(rx => String(rx.status || "").toLowerCase() !== "returned")
     .map(rx => calculatePrescriptionSupply(rx))
@@ -2904,7 +3119,8 @@ function getFilteredPatientRows() {
   const toDate = q("patientsToFilter")?.value || "";
   const search = String(q("patientsSearchFilter")?.value || "").trim().toLowerCase();
 
-  return (APP.cache.prescriptions || [])
+  ensureArchiveToggleBar("patients", q("patientsTbody")?.closest(".table-shell") || q("patientsTbody"), renderPatientsPage);
+  return getScopedPrescriptionRows("patients")
     .filter(rx => WORK_PHARMACIES.includes(rx.pharmacy))
     .map(rx => ({ rx, calc: calculatePrescriptionSupply(rx) }))
     .filter(({ rx, calc }) => {
@@ -2944,7 +3160,7 @@ function buildPatientDetailCard(rx, calc) {
       <div class="patient-detail-item"><span>Scientific Name Matches</span><strong>${scientificMatches.length} related prescription(s)</strong></div>
     </div>
     <div class="patient-detail-actions">
-      <button class="soft-btn add-dose-btn" data-add-dose="${esc(rx.id)}">Add Dose</button>
+      ${rx.__archived ? archivedBadge() : `<button class="soft-btn add-dose-btn" data-add-dose="${esc(rx.id)}">Add Dose</button>`}
     </div>
   </div>`;
 }
@@ -2987,14 +3203,14 @@ function renderPatientsPage() {
       <td>${esc(qtyText)}</td>
       <td><span class="patient-status-chip ${esc(statusCls)}">${esc(statusLabel)}</span></td>
       <td>${esc(formatRemainingText(calc))}</td>
-      <td><button class="soft-btn add-dose-btn" data-add-dose="${esc(rx.id)}">Add Dose</button></td>
+      <td>${rx.__archived ? archivedBadge() : `<button class="soft-btn add-dose-btn" data-add-dose="${esc(rx.id)}">Add Dose</button>`}</td>
     </tr>${isOpen ? `<tr class="patient-detail-row"><td colspan="10">${buildPatientDetailCard(rx, calc)}</td></tr>` : ""}`;
   }).join("") : `<tr><td colspan="10" class="empty-state">No patient prescriptions found for the selected filters.</td></tr>`;
 }
 
 function openAddDoseModal(prescriptionId) {
   const rx = (APP.cache.prescriptions || []).find(item => String(item.id) === String(prescriptionId));
-  if (!rx || !canViewPharmacy(rx.pharmacy)) return;
+  if (!rx || !canViewPharmacy(rx.pharmacy) || rx.__archived) return;
   APP.currentDosePrescriptionId = rx.id;
   const drug = getDrugById(rx.drugId);
   const currentDose = getActiveDoseForPrescription(rx.id);
@@ -3198,6 +3414,7 @@ async function doLogin(portalRole, employeeNumber, password) {
   q("appShell").classList.remove("hidden");
   updateLayoutMode();
   showPage("dashboard");
+  loadArchiveCaches(true).then(() => renderAll()).catch(err => console.error(err));
   startRealtimeSyncEnhancements();
   queueAutomaticArchiveCheck();
 
@@ -3787,7 +4004,8 @@ function renderDrugRows() {
   const to = q("drugRxToDate")?.value || "";
   const effectiveFrom = from || (!to ? jordanDateKey() : "");
   const effectiveTo = to || (!from ? jordanDateKey() : "");
-  const rows = prescriptionScopeRows().filter(row => {
+  ensureArchiveToggleBar("recentPrescriptions", q("recentPrescriptionsTbody")?.closest(".table-shell") || q("recentPrescriptionsTbody"), renderRecentPrescriptionsModal);
+  const rows = getScopedPrescriptionRows("recentPrescriptions").filter(row => {
     if (row.drugId !== APP.selectedDrugId) return false;
     const day = formatJordanDateTime(row.dateTime).slice(0, 10);
     if (effectiveFrom && day < effectiveFrom) return false;
@@ -3809,7 +4027,7 @@ function renderDrugRows() {
       <td>${Number(row.qtyUnits || 0)}</td>
       <td>${esc(row.doctorName || "")}</td>
       <td>${esc(row.pharmacistName || "")}</td>
-      <td>${esc(row.status || "")}</td>
+      <td>${row.__archived ? 'Archived' : esc(row.status || "")}</td>
       <td class="rx-actions-cell">${buildPrescriptionActionsDropdown(row, { prefix: "drug" })}</td>
     </tr>`;
   }).join("") || `<tr><td colspan="9" class="empty-state">No prescriptions for this drug in the selected range.</td></tr>`;
@@ -4041,6 +4259,7 @@ async function addDrug() {
 
 function buildPrescriptionActionsDropdown(row, { prefix = "rx" } = {}) {
   if (!row) return `<span class="muted">-</span>`;
+  if (row.__archived) return archivedBadge();
   const allowed = canEditPrescription(row);
   const canDelete = prefix === "narcotic" ? (APP.currentRole === "ADMIN" || APP.currentPortal === "IN_PATIENT_USER" || canCurrentUserAudit()) : canDeletePrescriptionRow(row);
   const menuId = `rx_actions_${prefix}_${row.id}`;
@@ -4741,7 +4960,8 @@ function getFilteredNarcoticTransactionsRows() {
   const { drugId, type, from, to, search } = narcoticTransactionsFilters();
   const hasRange = !!(from || to);
   const defaultDay = jordanDateKey();
-  return (APP.cache.narcoticOrderMovements || []).filter(row => {
+  ensureArchiveToggleBar("narcoticMovements", q("narcoticTransactionsTbody")?.closest(".table-shell") || q("narcoticTransactionsTbody"), renderNarcoticTransactionsTable);
+  return getScopedNarcoticMovementRows("narcoticMovements").filter(row => {
     const day = String(formatJordanDateTime(row.dateTime)).slice(0, 10);
     if (hasRange) {
       if (from && day < from) return false;
@@ -4811,7 +5031,8 @@ function resetNarcoticEntryForm() {
   updateNarcoticAvailableStock();
 }
 function narcoticActionMenu(row) {
-  if (!row) return `<span class="muted">-</span>`;
+  if (!row) return `<span class=\"muted\">-</span>`;
+  if (row.__archived) return archivedBadge();
   if (APP.currentRole === "ADMIN" || APP.currentRole === "IN_PATIENT_USER") {
     return buildPrescriptionActionsDropdown({ id: row.id, status: row.status || "Registered" }, { prefix: "narcotic" });
   }
@@ -4945,7 +5166,7 @@ async function removeDrugFromNarcoticDepartment(drugId) {
 
 function renderNarcoticRecent() {
   if (!q("narcoticRecentTbody")) return;
-  const rows = APP.cache.narcoticPrescriptions.slice(0,7);
+  const rows = getScopedNarcoticPrescriptionRows("narcoticPrescriptions").slice(0,7);
   q("narcoticRecentTbody").innerHTML = rows.map(row => {
     const drug = narcoticDrugById(row.drugId);
     const dept = narcoticDeptById(row.departmentId);
@@ -4957,7 +5178,7 @@ function renderNarcoticRecent() {
       <td>${Number(row.dispensedUnits || 0)}</td>
       <td>${esc(row.discardDose || "")}</td>
       <td>${esc(row.pharmacist || "")}</td>
-      <td>${narcoticActionMenu(row)}</td>
+      <td>${row.__archived ? archivedBadge() : narcoticActionMenu(row)}</td>
     </tr>`;
   }).join("") || `<tr><td colspan="8" class="empty-state">No narcotic prescriptions found.</td></tr>`;
 }
@@ -5071,11 +5292,11 @@ function buildTransferBatchDetails(rows) {
 function buildNormalTransactionDetails(row) {
   if (!row) return `<div class="empty-state">Transaction not found.</div>`;
   if (row.type === "Receive Shipment") {
-    const rows = (APP.cache.transactions || []).filter(r => (row.batchId && r.batchId === row.batchId) || r.id === row.id);
+    const rows = getScopedTransactionRows("transactions").filter(r => (row.batchId && r.batchId === row.batchId) || r.id === row.id);
     return buildNormalTransactionPrintSection("shipment", rows);
   }
   if (row.type === "Transfer") {
-    const rows = (APP.cache.transactions || []).filter(r => (row.batchId && r.batchId === row.batchId) || r.id === row.id);
+    const rows = getScopedTransactionRows("transactions").filter(r => (row.batchId && r.batchId === row.batchId) || r.id === row.id);
     return buildNormalTransactionPrintSection("transfer", rows);
   }
   if (row.type === "Return") return buildNormalTransactionPrintSection("return", [row]);
@@ -5113,11 +5334,11 @@ function printSelectedTransaction() {
   let body = `<div class="empty-state">Transaction not found.</div>`;
   let title = 'Selected Transaction';
   if (info.scope === 'narcotic') {
-    const row = (APP.cache.narcoticOrderMovements || []).find(item => String(item.id) === String(info.id));
+    const row = getNarcoticTransactionById(info.id);
     body = buildNarcoticTransactionDetails(row);
     title = 'Narcotic Transaction';
   } else {
-    const row = (APP.cache.transactions || []).find(item => String(item.id) === String(info.id));
+    const row = getNormalTransactionById(info.id);
     body = buildNormalTransactionDetails(row);
     title = 'Transaction';
   }
@@ -5131,10 +5352,10 @@ function openTransactionDetails(scope, id) {
   let body = `<div class="empty-state">Transaction not found.</div>`;
   APP.currentTransactionDetail = { scope, id };
   if (scope === "narcotic") {
-    const row = (APP.cache.narcoticOrderMovements || []).find(item => String(item.id) === String(id));
+    const row = getNarcoticTransactionById(id);
     body = buildNarcoticTransactionDetails(row);
   } else {
-    const row = (APP.cache.transactions || []).find(item => String(item.id) === String(id));
+    const row = getNormalTransactionById(id);
     body = buildNormalTransactionDetails(row);
   }
   q("transactionDetailsBody").innerHTML = body;
@@ -5296,7 +5517,7 @@ function renderNarcoticTransactionsTable() {
       <td>${esc(row.performedBy || "-")}</td>
       <td>${esc(row.nurseName || "-")}</td>
       <td>${esc(row.notes || "-")}</td>
-      <td><button class="soft-btn mini-btn transaction-details-btn" data-scope="narcotic" data-id="${esc(row.id)}">Details</button></td>
+      <td><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">${row.__archived ? archivedBadge() : ""}<button class="soft-btn mini-btn transaction-details-btn" data-scope="narcotic" data-id="${esc(row.id)}">Details</button></div></td>
     </tr>
   `).join("") || `<tr><td colspan="11" class="empty-state">No narcotic transactions found for the selected criteria.</td></tr>`;
 }
@@ -5328,6 +5549,7 @@ function renderNarcoticPage() {
   renderNarcoticManageDrugsTable();
   renderNarcoticInternalStockTable();
   renderNarcoticTransactionsTable();
+  ensureArchiveToggleBar("narcoticPrescriptions", q("narcoticRecentTbody")?.closest(".table-shell") || q("narcoticRecentTbody"), renderNarcoticRecent);
   updateNarcoticAvailableStock();
   updateNarcoticReportPreview();
   if (APP.narcoticOpenDepartmentId) {
@@ -6010,7 +6232,8 @@ function renderNarcoticRecentRows() {
   const to = q("narcoticRecentTo")?.value || "";
   const effectiveFrom = from || (!to ? jordanDateKey() : "");
   const effectiveTo = to || (!from ? jordanDateKey() : "");
-  const rows = APP.cache.narcoticPrescriptions.filter(row => {
+  ensureArchiveToggleBar("narcoticPrescriptions", q("narcoticRecentModalTbody")?.closest(".table-shell") || q("narcoticRecentModalTbody"), renderNarcoticRecentRows);
+  const rows = getScopedNarcoticPrescriptionRows("narcoticPrescriptions").filter(row => {
     const day = formatJordanDateTime(row.dateTime).slice(0, 10);
     if (effectiveFrom && day < effectiveFrom) return false;
     if (effectiveTo && day > effectiveTo) return false;
@@ -6027,7 +6250,7 @@ function renderNarcoticRecentRows() {
       <td>${Number(row.dispensedUnits || 0)}</td>
       <td>${esc(row.discardDose || "-")}</td>
       <td>${esc(row.pharmacist || "")}</td>
-      <td>${narcoticActionMenu(row)}</td>
+      <td>${row.__archived ? archivedBadge() : narcoticActionMenu(row)}</td>
     </tr>`;
   }).join("") || `<tr><td colspan="8" class="empty-state">No narcotic prescriptions found.</td></tr>`;
 }
@@ -6380,6 +6603,7 @@ q("logoutBtn").onclick = () => {
   APP.currentRole = null;
   APP.currentUser = null;
   APP.currentUserDocId = null;
+  APP.archiveCache = { prescriptions: [], prescriptionDoses: [], transactions: [], narcoticPrescriptions: [], narcoticOrderMovements: [], loadedAt: null, loading: false };
   APP.currentPortal = null;
   APP.currentPharmacyScope = null;
   APP.loginMethod = null;
@@ -6565,11 +6789,13 @@ if (q("narcoticTransactionsTodayBtn")) q("narcoticTransactionsTodayBtn").onclick
   q("narcoticTransactionsFrom").value = today;
   q("narcoticTransactionsTo").value = today;
   renderNarcoticTransactionsTable();
+  ensureArchiveToggleBar("narcoticPrescriptions", q("narcoticRecentTbody")?.closest(".table-shell") || q("narcoticRecentTbody"), renderNarcoticRecent);
 };
 if (q("narcoticTransactionsClearBtn")) q("narcoticTransactionsClearBtn").onclick = () => {
   q("narcoticTransactionsFrom").value = "";
   q("narcoticTransactionsTo").value = "";
   renderNarcoticTransactionsTable();
+  ensureArchiveToggleBar("narcoticPrescriptions", q("narcoticRecentTbody")?.closest(".table-shell") || q("narcoticRecentTbody"), renderNarcoticRecent);
 };
 document.addEventListener("click", event => {
   const detailBtn = event.target.closest(".transaction-details-btn");
