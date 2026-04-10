@@ -188,15 +188,10 @@ function onSnapshot(ref, callback) {
       if (status === "SUBSCRIBED") emit();
     });
 
-  const fallbackTimer = setInterval(() => {
-    emit();
-  }, REALTIME_SYNC_FALLBACK_MS);
-
   emit();
 
   return () => {
     active = false;
-    clearInterval(fallbackTimer);
     supabase.removeChannel(channel);
   };
 }
@@ -315,6 +310,7 @@ const APP = {
   syncEnhancementsStarted: false,
   syncRefreshBusy: false,
   autoArchiveCheckStarted: false,
+  archiveStatus: null,
   optimisticRenderSuspended: false,
   optimisticDirtyTables: new Set(),
   cache: {
@@ -556,6 +552,7 @@ async function archiveTableRows({
   };
 }
 
+
 async function archiveOldDataNow(options = {}) {
   const silent = !!options.silent;
   const reason = options.reason || "manual";
@@ -590,14 +587,23 @@ async function archiveOldDataNow(options = {}) {
     ]);
 
     const totalArchived = results.reduce((sum, item) => sum + Number(item.archived || 0), 0);
-    await setDoc(doc(db, "app_meta", AUTO_ARCHIVE_STATUS_DOC_ID), {
-      lastCheckedAt: serverTimestamp(),
-      lastSuccessfulRunAt: serverTimestamp(),
-      lastReason: reason,
-      lastArchivedRows: totalArchived,
-      lastResults: results,
-      updatedAt: serverTimestamp()
-    }, { merge: true });
+
+    const { data: insertedRun, error: archiveRunError } = await supabase
+      .from("archive_runs")
+      .insert({
+        created_at: new Date().toISOString(),
+        status: "success"
+      })
+      .select("*")
+      .maybeSingle();
+
+    if (archiveRunError) {
+      console.error("Archive run log insert failed:", archiveRunError);
+    } else if (insertedRun) {
+      APP.archiveStatus = insertedRun;
+    }
+
+    await loadArchiveStatus();
 
     if (!silent) {
       finishActionModal(
@@ -611,13 +617,15 @@ async function archiveOldDataNow(options = {}) {
     return results;
   } catch (error) {
     console.error("Archive Error:", error);
-    await setDoc(doc(db, "app_meta", AUTO_ARCHIVE_STATUS_DOC_ID), {
-      lastCheckedAt: serverTimestamp(),
-      lastFailedRunAt: serverTimestamp(),
-      lastReason: reason,
-      lastError: String(error?.message || error || "Archive failed"),
-      updatedAt: serverTimestamp()
-    }, { merge: true });
+    try {
+      await supabase.from("archive_runs").insert({
+        created_at: new Date().toISOString(),
+        status: "failed"
+      });
+      await loadArchiveStatus();
+    } catch (archiveRunError) {
+      console.error("Archive run failure log insert failed:", archiveRunError);
+    }
     if (!silent) {
       finishActionModal(false, error?.message || "Archive failed.");
     }
@@ -627,68 +635,90 @@ async function archiveOldDataNow(options = {}) {
 
 function isArchiveDue(lastSuccessfulRunAt, months = ARCHIVE_MONTHS_THRESHOLD) {
   if (!lastSuccessfulRunAt) return true;
-  return isOlderThanMonths(lastSuccessfulRunAt, months);
+  const d = new Date(lastSuccessfulRunAt);
+  if (Number.isNaN(d.getTime())) return true;
+  const nextRun = new Date(d);
+  nextRun.setMonth(nextRun.getMonth() + Number(months || ARCHIVE_MONTHS_THRESHOLD));
+  return new Date() >= nextRun;
 }
 
-async function tryAcquireAutoArchiveLock(actorName = "system") {
-  const lockRef = doc(db, "app_meta", AUTO_ARCHIVE_LOCK_DOC_ID);
-  const token = crypto.randomUUID();
-  const now = new Date();
-  const nowMs = now.getTime();
-  const currentSnap = await getDoc(lockRef);
-  const current = currentSnap.exists() ? currentSnap.data() : {};
-  const expiresAtMs = new Date(current?.expiresAt || 0).getTime();
-  if (current?.locked && expiresAtMs > nowMs) {
+function getArchiveRunCreatedAt(run) {
+  return run?.createdAt || run?.created_at || run?.dateTime || run?.date_time || "";
+}
+
+function formatArchiveStatusLabel(run) {
+  if (!run) return "No archive has been recorded yet.";
+  const createdAt = getArchiveRunCreatedAt(run);
+  const status = String(run?.status || "unknown").trim() || "unknown";
+  const when = createdAt ? formatJordanDateTime(createdAt, true) : "-";
+  return `Last archive: ${when} · Status: ${status}`;
+}
+
+async function fetchLatestArchiveRun() {
+  const { data, error } = await supabase
+    .from("archive_runs")
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(1);
+  if (error) throw error;
+  return data?.[0] || null;
+}
+
+async function loadArchiveStatus() {
+  if (APP.currentRole !== "ADMIN") return null;
+  try {
+    const latestRun = await fetchLatestArchiveRun();
+    APP.archiveStatus = latestRun || null;
+    renderDashboard();
+    renderSettings();
+    return latestRun;
+  } catch (error) {
+    console.error("Archive status load failed:", error);
     return null;
   }
-
-  await setDoc(lockRef, {
-    locked: true,
-    token,
-    lockedBy: actorName || "system",
-    lockedAt: serverTimestamp(),
-    expiresAt: new Date(nowMs + AUTO_ARCHIVE_LOCK_MINUTES * 60 * 1000).toISOString(),
-    updatedAt: serverTimestamp()
-  }, { merge: true });
-
-  const verifySnap = await getDoc(lockRef);
-  const verify = verifySnap.exists() ? verifySnap.data() : {};
-  if (verify?.token !== token) return null;
-  return token;
-}
-
-async function releaseAutoArchiveLock(token) {
-  if (!token) return;
-  const lockRef = doc(db, "app_meta", AUTO_ARCHIVE_LOCK_DOC_ID);
-  const snap = await getDoc(lockRef);
-  const data = snap.exists() ? snap.data() : {};
-  if (data?.token !== token) return;
-  await setDoc(lockRef, {
-    locked: false,
-    token: null,
-    releasedAt: serverTimestamp(),
-    updatedAt: serverTimestamp()
-  }, { merge: true });
 }
 
 async function runAutomaticArchiveIfDue() {
   if (APP.currentRole !== "ADMIN") return false;
-  const statusSnap = await getDoc(doc(db, "app_meta", AUTO_ARCHIVE_STATUS_DOC_ID));
-  const status = statusSnap.exists() ? statusSnap.data() : {};
-  if (!isArchiveDue(status?.lastSuccessfulRunAt)) {
-    return false;
-  }
-
-  const token = await tryAcquireAutoArchiveLock(currentActorName() || "Admin");
-  if (!token) {
-    return false;
-  }
 
   try {
+    const { data: runs, error } = await supabase
+      .from("archive_runs")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(1);
+
+    if (error) throw error;
+
+    const lastRun = runs?.[0]?.created_at
+      ? new Date(runs[0].created_at)
+      : null;
+
+    const now = new Date();
+
+    let shouldRun = false;
+
+    if (!lastRun) {
+      shouldRun = true;
+    } else {
+      const nextRun = new Date(lastRun);
+      nextRun.setMonth(nextRun.getMonth() + ARCHIVE_MONTHS_THRESHOLD);
+      shouldRun = now >= nextRun;
+    }
+
+    if (!shouldRun) {
+      await loadArchiveStatus();
+      return false;
+    }
+
     await archiveOldDataNow({ silent: true, reason: "auto_admin_login" });
+    await loadArchiveStatus();
+
     return true;
-  } finally {
-    await releaseAutoArchiveLock(token);
+
+  } catch (error) {
+    console.error("Automatic archive check failed:", error);
+    return false;
   }
 }
 
@@ -704,6 +734,9 @@ async function refreshCrossUserSyncNow() {
       "users",
       "app_settings"
     ];
+    if (APP.currentRole === "ADMIN") {
+      tables.push("archive_runs");
+    }
     if (APP.currentRole === "ADMIN" || APP.currentPortal === "IN_PATIENT_USER") {
       tables.push(
         "narcotic_drugs",
@@ -715,6 +748,7 @@ async function refreshCrossUserSyncNow() {
       );
     }
     await refreshTablesImmediate(tables);
+    if (APP.currentRole === "ADMIN") await loadArchiveStatus();
   } catch (error) {
     console.error("Cross-user sync refresh failed:", error);
   } finally {
@@ -726,6 +760,9 @@ function startRealtimeSyncEnhancements() {
   if (APP.syncEnhancementsStarted) return;
   APP.syncEnhancementsStarted = true;
   window.addEventListener("focus", () => {
+    refreshCrossUserSyncNow();
+  });
+  window.addEventListener("online", () => {
     refreshCrossUserSyncNow();
   });
   document.addEventListener("visibilitychange", () => {
@@ -746,6 +783,7 @@ function queueAutomaticArchiveCheck() {
     }
   }, 1500);
 }
+
 
 
 const q = id => document.getElementById(id);
@@ -1296,6 +1334,15 @@ function bindListeners() {
     renderNarcoticPage();
   }));
 
+  if (APP.currentRole === "ADMIN") {
+    APP.listeners.push(onSnapshot(collection(db, "archive_runs"), snap => {
+      const runs = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+        .sort((a, b) => String(getArchiveRunCreatedAt(b) || "").localeCompare(String(getArchiveRunCreatedAt(a) || "")));
+      APP.archiveStatus = runs[0] || null;
+      renderDashboard();
+      renderSettings();
+    }));
+  }
 
   APP.listeners.push(onSnapshot(doc(db, "app_settings", "main"), snap => {
     APP.cache.settings = snap.exists() ? snap.data() : {};
@@ -1355,6 +1402,7 @@ async function tryRestoreSession() {
   updateLayoutMode();
   showPage("dashboard");
   startRealtimeSyncEnhancements();
+  if (APP.currentRole === "ADMIN") loadArchiveStatus();
   queueAutomaticArchiveCheck();
 }
 
@@ -2102,6 +2150,28 @@ function renderDashboard() {
         </div>`;
     }).join("") || `<div class="empty-state">No medication cards match your search.</div>`;
 
+  const dashboardArchiveHost = q("recentList")?.parentElement;
+  if (dashboardArchiveHost) {
+    let archivePanel = q("dashboardArchiveStatusPanel");
+    if (!archivePanel) {
+      archivePanel = document.createElement("div");
+      archivePanel.id = "dashboardArchiveStatusPanel";
+      archivePanel.className = "glass-card";
+      archivePanel.style.marginBottom = "12px";
+      dashboardArchiveHost.insertBefore(archivePanel, q("recentList"));
+    }
+    archivePanel.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+        <div>
+          <div style="font-weight:800;font-size:14px">Archive Status</div>
+          <div class="subline">${esc(formatArchiveStatusLabel(APP.archiveStatus))}</div>
+        </div>
+        ${APP.currentRole === "ADMIN" ? '<button id="dashboardArchiveNowBtn" class="soft-btn" type="button">Archive Now</button>' : ''}
+      </div>`;
+    const dashboardArchiveNowBtn = q("dashboardArchiveNowBtn");
+    if (dashboardArchiveNowBtn) dashboardArchiveNowBtn.onclick = () => archiveOldDataNow({ reason: "dashboard_manual" });
+  }
+
   renderDashboardCharts(scopedPrescriptions);
 }
 
@@ -2627,6 +2697,33 @@ function renderSettings() {
         <div class="user-card-meta">Roles: ${esc(roles)}</div>
       </button>`;
   }).join("") || `<div class="empty-state">No users found.</div>`;
+
+  const usersCardsHost = q("usersCards")?.parentElement;
+  if (usersCardsHost) {
+    let archiveSettingsPanel = q("settingsArchivePanel");
+    if (!archiveSettingsPanel) {
+      archiveSettingsPanel = document.createElement("div");
+      archiveSettingsPanel.id = "settingsArchivePanel";
+      archiveSettingsPanel.className = "glass-card";
+      archiveSettingsPanel.style.marginBottom = "16px";
+      usersCardsHost.insertBefore(archiveSettingsPanel, q("usersCards"));
+    }
+    archiveSettingsPanel.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+        <div>
+          <div style="font-weight:800;font-size:14px">Archive Controls</div>
+          <div class="subline">${esc(formatArchiveStatusLabel(APP.archiveStatus))}</div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button id="settingsArchiveRefreshBtn" class="soft-btn" type="button">Refresh Archive Status</button>
+          <button id="settingsArchiveNowBtn" class="primary-btn" type="button">Archive Now</button>
+        </div>
+      </div>`;
+    const settingsArchiveRefreshBtn = q("settingsArchiveRefreshBtn");
+    const settingsArchiveNowBtn = q("settingsArchiveNowBtn");
+    if (settingsArchiveRefreshBtn) settingsArchiveRefreshBtn.onclick = () => loadArchiveStatus();
+    if (settingsArchiveNowBtn) settingsArchiveNowBtn.onclick = () => archiveOldDataNow({ reason: "settings_manual" });
+  }
 }
 
 
@@ -6488,5 +6585,6 @@ if (q("loginPassword")) q("loginPassword").addEventListener("keydown", e => { if
 window.archiveOldDataNow = archiveOldDataNow;
 window.refreshCrossUserSyncNow = refreshCrossUserSyncNow;
 window.runAutomaticArchiveIfDue = runAutomaticArchiveIfDue;
+window.loadArchiveStatus = loadArchiveStatus;
 
 updateLayoutMode();
