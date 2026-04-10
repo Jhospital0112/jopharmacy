@@ -2355,6 +2355,8 @@ function printInventoryAuditReport() {
 
 function renderDashboard() {
   const scope = currentScopePharmacy();
+  const recentHost = q("recentList")?.parentElement || q("recentList");
+  if (recentHost) ensureArchiveToggleBar("recentPrescriptions", recentHost, renderDashboard);
   const scopedPrescriptions = getScopedPrescriptionRows("recentPrescriptions");
   const cardSearch = (q("drugCardsSearch").value || "").toLowerCase();
 
@@ -4004,8 +4006,8 @@ function renderDrugRows() {
   const to = q("drugRxToDate")?.value || "";
   const effectiveFrom = from || (!to ? jordanDateKey() : "");
   const effectiveTo = to || (!from ? jordanDateKey() : "");
-  ensureArchiveToggleBar("recentPrescriptions", q("recentPrescriptionsTbody")?.closest(".table-shell") || q("recentPrescriptionsTbody"), renderRecentPrescriptionsModal);
-  const rows = getScopedPrescriptionRows("recentPrescriptions").filter(row => {
+  ensureArchiveToggleBar("drugInterface", q("drugRxTbody")?.closest(".table-shell") || q("drugRxTbody"), renderDrugRows);
+  const rows = getScopedPrescriptionRows("drugInterface").filter(row => {
     if (row.drugId !== APP.selectedDrugId) return false;
     const day = formatJordanDateTime(row.dateTime).slice(0, 10);
     if (effectiveFrom && day < effectiveFrom) return false;
