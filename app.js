@@ -14,7 +14,7 @@ const SUPABASE_ANON_KEY =
 const ARCHIVE_WEBAPP_URL =
   window.CDMS_CONFIG?.ARCHIVE_WEBAPP_URL ||
   window.APP_CONFIG?.ARCHIVE_WEBAPP_URL ||
-  "https://script.google.com/macros/s/AKfycbwa5gb8HKJ6hIWFgUVaIkOCI68a7YGld28E7yo9CZzqPxqpLa46D22BM8niNtqoJ9pyAw/exec";
+  "https://script.google.com/macros/s/AKfycbzEO4cluZJXAejmM92ND2iCkwHIVDQ-JDIQQzPJYcCh_rMrPgcluCelYVzr07r2o26O6w/exec";
 
 const ARCHIVE_SECRET = "779911";
 
@@ -350,12 +350,27 @@ APP.archiveView = {
 
 APP.archiveCache = {
   prescriptions: [],
-  prescriptionDoses: [],
   transactions: [],
   narcoticPrescriptions: [],
   narcoticOrderMovements: [],
-  loadedAt: null,
-  loading: false
+  loadedAtMap: {
+    prescriptions: null,
+    transactions: null,
+    narcoticPrescriptions: null,
+    narcoticOrderMovements: null
+  },
+  loadingMap: {
+    prescriptions: false,
+    transactions: false,
+    narcoticPrescriptions: false,
+    narcoticOrderMovements: false
+  },
+  errorMap: {
+    prescriptions: "",
+    transactions: "",
+    narcoticPrescriptions: "",
+    narcoticOrderMovements: ""
+  }
 };
 
 
@@ -541,7 +556,7 @@ async function postRowsToArchive(sheetName, rows) {
 
 
 
-async function searchArchiveSheet(sheetName, params = {}) {
+function buildArchiveJsonpUrl(sheetName, params = {}) {
   const url = new URL(ARCHIVE_WEBAPP_URL);
   url.searchParams.set("action", "search_archive");
   url.searchParams.set("secret", ARCHIVE_SECRET);
@@ -551,85 +566,107 @@ async function searchArchiveSheet(sheetName, params = {}) {
   if (params.from) url.searchParams.set("from", String(params.from).trim());
   if (params.to) url.searchParams.set("to", String(params.to).trim());
   if (params.pharmacyScope) url.searchParams.set("pharmacyScope", String(params.pharmacyScope).trim());
-  const res = await fetch(url.toString(), { method: "GET" });
-  const data = await res.json();
-  if (!res.ok || data?.success !== true) throw new Error(data?.error || `Archive search failed for ${sheetName}`);
+  return url;
+}
+
+function fetchArchiveJsonp(sheetName, params = {}, timeoutMs = 20000) {
+  return new Promise((resolve, reject) => {
+    const callbackName = `__cdmsArchiveCb_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const cleanup = (scriptEl) => {
+      try { delete window[callbackName]; } catch (_) { window[callbackName] = undefined; }
+      if (scriptEl && scriptEl.parentNode) scriptEl.parentNode.removeChild(scriptEl);
+    };
+
+    const url = buildArchiveJsonpUrl(sheetName, params);
+    url.searchParams.set("callback", callbackName);
+    url.searchParams.set("_ts", String(Date.now()));
+
+    const script = document.createElement("script");
+    script.async = true;
+    script.src = url.toString();
+
+    const timer = window.setTimeout(() => {
+      cleanup(script);
+      reject(new Error(`Archive request timed out for ${sheetName}`));
+    }, timeoutMs);
+
+    window[callbackName] = (payload) => {
+      window.clearTimeout(timer);
+      cleanup(script);
+      resolve(payload || {});
+    };
+
+    script.onerror = () => {
+      window.clearTimeout(timer);
+      cleanup(script);
+      reject(new Error(`Archive script load failed for ${sheetName}`));
+    };
+
+    document.head.appendChild(script);
+  });
+}
+
+async function searchArchiveSheet(sheetName, params = {}) {
+  const data = await fetchArchiveJsonp(sheetName, params);
+  if (data?.success !== true) throw new Error(data?.error || `Archive search failed for ${sheetName}`);
   return Array.isArray(data.rows) ? data.rows : [];
 }
 
-function normalizeArchivePrescriptionRow(row) {
-  return {
-    ...row,
-    id: row.id || `arch_rx_${row.__archiveSheet || "prescriptions_archive"}_${String(row.dateTime || row.createdAt || Math.random()).replace(/[^\w-]+/g, "_")}_${String(row.fileNumber || "")}`,
-    qtyBoxes: Number(row.qtyBoxes || 0),
-    qtyUnits: Number(row.qtyUnits || 0),
-    __archived: true,
-    __archiveType: "prescription"
-  };
+function getArchiveBucketNameForView(viewKey) {
+  if (viewKey === "patients" || viewKey === "prescriptions" || viewKey === "recentPrescriptions" || viewKey === "drugInterface") return "prescriptions";
+  if (viewKey === "transactions") return "transactions";
+  if (viewKey === "narcoticPrescriptions") return "narcoticPrescriptions";
+  if (viewKey === "narcoticMovements") return "narcoticOrderMovements";
+  return "";
 }
 
-function normalizeArchiveTransactionRow(row) {
-  return {
-    ...row,
-    id: row.id || `arch_tx_${row.__archiveSheet || "transactions_archive"}_${String(row.dateTime || row.createdAt || Math.random()).replace(/[^\w-]+/g, "_")}_${String(row.type || "")}`,
-    qtyBoxes: Number(row.qtyBoxes || 0),
-    qtyUnits: Number(row.qtyUnits || 0),
-    __archived: true,
-    __archiveType: "transaction"
-  };
-}
+async function loadArchiveBucket(bucketName, force = false) {
+  if (!bucketName) return [];
+  const cache = APP.archiveCache;
+  if (!force && cache.loadedAtMap?.[bucketName]) return cache[bucketName] || [];
+  if (cache.loadingMap?.[bucketName]) return cache[bucketName] || [];
 
-function normalizeArchiveNarcoticPrescriptionRow(row) {
-  return {
-    ...row,
-    id: row.id || `arch_nrx_${row.__archiveSheet || "narcotic_prescriptions_archive"}_${String(row.dateTime || Math.random()).replace(/[^\w-]+/g, "_")}_${String(row.fileNumber || "")}`,
-    dispensedUnits: Number(row.dispensedUnits || row.quantitySent || 0),
-    __archived: true,
-    __archiveType: "narcotic_prescription"
-  };
-}
+  cache.loadingMap[bucketName] = true;
+  cache.errorMap[bucketName] = "";
 
-function normalizeArchiveNarcoticMovementRow(row) {
-  return {
-    ...row,
-    id: row.id || `arch_nom_${row.__archiveSheet || "narcotic_order_movements_archive"}_${String(row.dateTime || Math.random()).replace(/[^\w-]+/g, "_")}_${String(row.type || "")}`,
-    quantitySent: Number(row.quantitySent || 0),
-    quantityReceived: Number(row.quantityReceived || 0),
-    dispensedUnits: Number(row.dispensedUnits || 0),
-    emptyAmpoulesReceived: Number(row.emptyAmpoulesReceived || 0),
-    __archived: true,
-    __archiveType: "narcotic_movement"
-  };
+  try {
+    const scope = APP.currentRole === "ADMIN" ? "" : currentScopePharmacy();
+    let rows = [];
+
+    if (bucketName === "prescriptions") {
+      rows = (await searchArchiveSheet("prescriptions_archive", { pharmacyScope: scope })).map(normalizeArchivePrescriptionRow);
+    } else if (bucketName === "transactions") {
+      rows = (await searchArchiveSheet("transactions_archive", { pharmacyScope: scope })).map(normalizeArchiveTransactionRow);
+    } else if (bucketName === "narcoticPrescriptions") {
+      rows = (await searchArchiveSheet("narcotic_prescriptions_archive", { pharmacyScope: scope })).map(normalizeArchiveNarcoticPrescriptionRow);
+    } else if (bucketName === "narcoticOrderMovements") {
+      rows = (await searchArchiveSheet("narcotic_order_movements_archive", { pharmacyScope: scope })).map(normalizeArchiveNarcoticMovementRow);
+    }
+
+    cache[bucketName] = rows;
+    cache.loadedAtMap[bucketName] = Date.now();
+    return rows;
+  } catch (error) {
+    cache.errorMap[bucketName] = String(error?.message || error || "Archive load failed");
+    console.error("Archive bucket load failed:", bucketName, error);
+    return cache[bucketName] || [];
+  } finally {
+    cache.loadingMap[bucketName] = false;
+  }
 }
 
 async function loadArchiveCaches(force = false) {
-  if (APP.archiveCache.loading) return;
-  if (!force && APP.archiveCache.loadedAt) return;
-  APP.archiveCache.loading = true;
-  try {
-    const scope = APP.currentRole === "ADMIN" ? "" : currentScopePharmacy();
-    const [archivedPrescriptions, archivedTransactions, archivedNarcoticPrescriptions, archivedNarcoticMovements] = await Promise.all([
-      searchArchiveSheet("prescriptions_archive", { pharmacyScope: scope }),
-      searchArchiveSheet("transactions_archive", { pharmacyScope: scope }),
-      searchArchiveSheet("narcotic_prescriptions_archive", { pharmacyScope: scope }),
-      searchArchiveSheet("narcotic_order_movements_archive", { pharmacyScope: scope })
-    ]);
-    APP.archiveCache.prescriptions = archivedPrescriptions.map(normalizeArchivePrescriptionRow);
-    APP.archiveCache.transactions = archivedTransactions.map(normalizeArchiveTransactionRow);
-    APP.archiveCache.narcoticPrescriptions = archivedNarcoticPrescriptions.map(normalizeArchiveNarcoticPrescriptionRow);
-    APP.archiveCache.narcoticOrderMovements = archivedNarcoticMovements.map(normalizeArchiveNarcoticMovementRow);
-    APP.archiveCache.loadedAt = Date.now();
-  } catch (error) {
-    console.error("Archive cache load failed:", error);
-  } finally {
-    APP.archiveCache.loading = false;
-  }
+  const buckets = ["prescriptions", "transactions", "narcoticPrescriptions", "narcoticOrderMovements"];
+  await Promise.all(buckets.map(bucket => loadArchiveBucket(bucket, force)));
 }
 
 function ensureArchiveCacheForMode(viewKey) {
   const mode = APP.archiveView?.[viewKey] || ARCHIVE_VIEW_MODES.ALL;
-  if (mode !== ARCHIVE_VIEW_MODES.CURRENT && !APP.archiveCache.loadedAt && !APP.archiveCache.loading) {
-    loadArchiveCaches().then(() => renderAll()).catch(err => console.error(err));
+  if (mode === ARCHIVE_VIEW_MODES.CURRENT) return;
+  const bucketName = getArchiveBucketNameForView(viewKey);
+  if (!bucketName) return;
+  if (!APP.archiveCache.loadedAtMap?.[bucketName] && !APP.archiveCache.loadingMap?.[bucketName]) {
+    loadArchiveBucket(bucketName).then(() => renderAll()).catch(err => console.error(err));
   }
 }
 
@@ -654,12 +691,17 @@ function ensureArchiveToggleBar(viewKey, anchorEl, renderFn) {
     anchorEl.parentNode.insertBefore(wrap, anchorEl);
   }
   const currentMode = APP.archiveView?.[viewKey] || ARCHIVE_VIEW_MODES.ALL;
+  const bucketName = getArchiveBucketNameForView(viewKey);
+  const bucketLoading = bucketName ? !!APP.archiveCache.loadingMap?.[bucketName] : false;
+  const bucketError = bucketName ? String(APP.archiveCache.errorMap?.[bucketName] || "") : "";
   const makeBtn = (mode, label) => `<button type="button" class="soft-btn mini-btn ${currentMode === mode ? 'active' : ''}" data-archive-view-key="${viewKey}" data-archive-view-mode="${mode}">${label}</button>`;
-  wrap.innerHTML = `<span class="subline" style="font-weight:700">Data View</span>${makeBtn(ARCHIVE_VIEW_MODES.CURRENT, 'Current Data')}${makeBtn(ARCHIVE_VIEW_MODES.ARCHIVED, 'Archived Data')}${makeBtn(ARCHIVE_VIEW_MODES.ALL, 'All')}`;
+  const loadingHtml = bucketLoading ? `<span class="subline" style="font-weight:700">Loading archive...</span>` : "";
+  const errorHtml = bucketError ? `<span class="badge" style="border-color:var(--danger);color:var(--danger)">${esc(bucketError)}</span>` : "";
+  wrap.innerHTML = `<span class="subline" style="font-weight:700">Data View</span>${makeBtn(ARCHIVE_VIEW_MODES.CURRENT, 'Current Data')}${makeBtn(ARCHIVE_VIEW_MODES.ARCHIVED, 'Archived Data')}${makeBtn(ARCHIVE_VIEW_MODES.ALL, 'All')}${loadingHtml}${errorHtml}`;
   wrap.querySelectorAll('[data-archive-view-mode]').forEach(btn => {
     btn.onclick = async () => {
       APP.archiveView[viewKey] = btn.dataset.archiveViewMode || ARCHIVE_VIEW_MODES.ALL;
-      if (APP.archiveView[viewKey] !== ARCHIVE_VIEW_MODES.CURRENT) await loadArchiveCaches();
+      if (APP.archiveView[viewKey] !== ARCHIVE_VIEW_MODES.CURRENT && bucketName) await loadArchiveBucket(bucketName);
       if (typeof renderFn === 'function') renderFn();
     };
   });
