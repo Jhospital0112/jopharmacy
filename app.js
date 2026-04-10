@@ -588,11 +588,23 @@ async function archiveOldDataNow(options = {}) {
 
     const totalArchived = results.reduce((sum, item) => sum + Number(item.archived || 0), 0);
 
+    const archiveStartedAt = new Date().toISOString();
+    const archiveFromDate = monthsAgoDate(ARCHIVE_MONTHS_THRESHOLD).toISOString().slice(0, 10);
+    const archiveToDate = new Date().toISOString().slice(0, 10);
+
     const { data: insertedRun, error: archiveRunError } = await supabase
       .from("archive_runs")
       .insert({
-        created_at: new Date().toISOString(),
-        status: "success"
+        archive_key: `${reason || "manual"}_${archiveStartedAt}`,
+        archived_from: archiveFromDate,
+        archived_to: archiveToDate,
+        target_sheet_name: "all_archive_sheets",
+        row_count: totalArchived,
+        status: "success",
+        started_at: archiveStartedAt,
+        completed_at: new Date().toISOString(),
+        notes: `Archive run from app (${reason || "manual"})`,
+        created_at: archiveStartedAt
       })
       .select("*")
       .maybeSingle();
@@ -618,9 +630,18 @@ async function archiveOldDataNow(options = {}) {
   } catch (error) {
     console.error("Archive Error:", error);
     try {
+      const failedAt = new Date().toISOString();
       await supabase.from("archive_runs").insert({
-        created_at: new Date().toISOString(),
-        status: "failed"
+        archive_key: `failed_${failedAt}`,
+        archived_from: monthsAgoDate(ARCHIVE_MONTHS_THRESHOLD).toISOString().slice(0, 10),
+        archived_to: new Date().toISOString().slice(0, 10),
+        target_sheet_name: "all_archive_sheets",
+        row_count: 0,
+        status: "failed",
+        started_at: failedAt,
+        completed_at: new Date().toISOString(),
+        notes: String(error?.message || "Archive failed"),
+        created_at: failedAt
       });
       await loadArchiveStatus();
     } catch (archiveRunError) {
