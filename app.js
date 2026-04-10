@@ -468,18 +468,36 @@ function isOlderThanMonths(dateTime, months = ARCHIVE_MONTHS_THRESHOLD) {
 }
 
 async function postRowsToArchive(sheetName, rows) {
-  if (!sheetName) throw new Error("Missing archive sheet name.");
-  if (!rows?.length) return { success: true, inserted: 0, sheetName };
+  if (!rows?.length) {
+    return { success: true, inserted: 0, sheetName };
+  }
 
   const res = await fetch(ARCHIVE_WEBAPP_URL, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "text/plain;charset=utf-8"
+    },
     body: JSON.stringify({
       secret: ARCHIVE_SECRET,
       sheetName,
       rows
     })
   });
+
+  const text = await res.text();
+  let data = {};
+  try {
+    data = JSON.parse(text || "{}");
+  } catch (_) {
+    data = { success: false, error: text || "Invalid response from archive server" };
+  }
+
+  if (!res.ok || data?.success !== true) {
+    throw new Error(data?.error || `Archive request failed for ${sheetName}`);
+  }
+
+  return data;
+}
 
   const data = await res.json().catch(() => ({}));
   if (!res.ok || data?.success !== true) {
