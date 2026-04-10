@@ -503,12 +503,6 @@ async function postRowsToArchive(sheetName, rows) {
   return data;
 }
 
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok || data?.success !== true) {
-    throw new Error(data?.error || `Archive request failed for ${sheetName}`);
-  }
-  return data;
-}
 
 async function archiveTableRows({
   sourceTable,
