@@ -16,10 +16,7 @@ const ARCHIVE_WEBAPP_URL =
   window.APP_CONFIG?.ARCHIVE_WEBAPP_URL ||
   "https://script.google.com/macros/s/AKfycbwa5gb8HKJ6hIWFgUVaIkOCI68a7YGld28E7yo9CZzqPxqpLa46D22BM8niNtqoJ9pyAw/exec";
 
-const ARCHIVE_SECRET =
-  window.CDMS_CONFIG?.ARCHIVE_SECRET ||
-  window.APP_CONFIG?.ARCHIVE_SECRET ||
-  "779911";
+const ARCHIVE_SECRET = "779911";
 
 const ARCHIVE_MONTHS_THRESHOLD = 3;
 
