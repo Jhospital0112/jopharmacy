@@ -14,7 +14,7 @@ const SUPABASE_ANON_KEY =
 const ARCHIVE_WEBAPP_URL =
   window.CDMS_CONFIG?.ARCHIVE_WEBAPP_URL ||
   window.APP_CONFIG?.ARCHIVE_WEBAPP_URL ||
-  "https://script.google.com/macros/s/AKfycbwa5gb8HKJ6hIWFgUVaIkOCI68a7YGld28E7yo9CZzqPxqpLa46D22BM8niNtqoJ9pyAw/exec";
+  "https://script.google.com/macros/s/AKfycbywKK4kH3PDT-TbddEw1Wtrd4NStyY5Xpk0BFWMrLOulOCQRHm10WB8TXbs6txeJYfPQw/exec";
 
 const ARCHIVE_SECRET = "779911";
 
@@ -311,6 +311,8 @@ const APP = {
   syncRefreshBusy: false,
   autoArchiveCheckStarted: false,
   archiveStatus: null,
+  archiveView: { dashboard: "all", patients: "all", prescriptions: "all", transactions: "all", narcoticPrescriptions: "all", narcoticMovements: "all" },
+  archiveCache: { prescriptions: { rows: [], loaded: false, loading: null }, transactions: { rows: [], loaded: false, loading: null }, narcoticPrescriptions: { rows: [], loaded: false, loading: null }, narcoticOrderMovements: { rows: [], loaded: false, loading: null } },
   optimisticRenderSuspended: false,
   optimisticDirtyTables: new Set(),
   cache: {
@@ -330,52 +332,6 @@ const APP = {
     narcoticInternalStock: []
   }
 };
-
-
-const ARCHIVE_VIEW_MODES = {
-  CURRENT: "current",
-  ARCHIVED: "archived",
-  ALL: "all"
-};
-
-APP.archiveView = {
-  patients: ARCHIVE_VIEW_MODES.ALL,
-  prescriptions: ARCHIVE_VIEW_MODES.ALL,
-  recentPrescriptions: ARCHIVE_VIEW_MODES.ALL,
-  drugInterface: ARCHIVE_VIEW_MODES.ALL,
-  transactions: ARCHIVE_VIEW_MODES.ALL,
-  narcoticPrescriptions: ARCHIVE_VIEW_MODES.ALL,
-  narcoticMovements: ARCHIVE_VIEW_MODES.ALL
-};
-
-function createArchiveCacheState() {
-  return {
-    prescriptions: [],
-    transactions: [],
-    narcoticPrescriptions: [],
-    narcoticOrderMovements: [],
-    loadedAtMap: {
-      prescriptions: null,
-      transactions: null,
-      narcoticPrescriptions: null,
-      narcoticOrderMovements: null
-    },
-    loadingMap: {
-      prescriptions: false,
-      transactions: false,
-      narcoticPrescriptions: false,
-      narcoticOrderMovements: false
-    },
-    errorMap: {
-      prescriptions: "",
-      transactions: "",
-      narcoticPrescriptions: "",
-      narcoticOrderMovements: ""
-    }
-  };
-}
-
-APP.archiveCache = createArchiveCacheState();
 
 
 function canCurrentUserTransfer() {
@@ -558,281 +514,6 @@ async function postRowsToArchive(sheetName, rows) {
   return data;
 }
 
-
-
-function buildArchiveJsonpUrl(sheetName, params = {}) {
-  const url = new URL(ARCHIVE_WEBAPP_URL);
-  url.searchParams.set("action", "search_archive");
-  url.searchParams.set("secret", ARCHIVE_SECRET);
-  url.searchParams.set("sheetName", sheetName);
-  if (params.term) url.searchParams.set("term", String(params.term).trim());
-  if (params.type) url.searchParams.set("type", String(params.type).trim());
-  if (params.from) url.searchParams.set("from", String(params.from).trim());
-  if (params.to) url.searchParams.set("to", String(params.to).trim());
-  if (params.pharmacyScope) url.searchParams.set("pharmacyScope", String(params.pharmacyScope).trim());
-  return url;
-}
-
-function fetchArchiveJsonp(sheetName, params = {}, timeoutMs = 20000) {
-  return new Promise((resolve, reject) => {
-    const callbackName = `__cdmsArchiveCb_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-    const cleanup = (scriptEl) => {
-      try { delete window[callbackName]; } catch (_) { window[callbackName] = undefined; }
-      if (scriptEl && scriptEl.parentNode) scriptEl.parentNode.removeChild(scriptEl);
-    };
-
-    const url = buildArchiveJsonpUrl(sheetName, params);
-    url.searchParams.set("callback", callbackName);
-    url.searchParams.set("_ts", String(Date.now()));
-
-    const script = document.createElement("script");
-    script.async = true;
-    script.src = url.toString();
-
-    const timer = window.setTimeout(() => {
-      cleanup(script);
-      reject(new Error(`Archive request timed out for ${sheetName}`));
-    }, timeoutMs);
-
-    window[callbackName] = (payload) => {
-      window.clearTimeout(timer);
-      cleanup(script);
-      resolve(payload || {});
-    };
-
-    script.onerror = () => {
-      window.clearTimeout(timer);
-      cleanup(script);
-      reject(new Error(`Archive script load failed for ${sheetName}`));
-    };
-
-    document.head.appendChild(script);
-  });
-}
-
-async function searchArchiveSheet(sheetName, params = {}) {
-  const data = await fetchArchiveJsonp(sheetName, params);
-  if (data?.success !== true) throw new Error(data?.error || `Archive search failed for ${sheetName}`);
-  return Array.isArray(data.rows) ? data.rows : [];
-}
-
-
-function makeArchiveRowId(prefix, row, fallbackKeys = []) {
-  const parts = [prefix];
-  for (const key of fallbackKeys) {
-    const value = row?.[key];
-    if (value !== undefined && value !== null && String(value).trim() !== "") {
-      parts.push(String(value).trim());
-    }
-  }
-  if (row?.__archiveSheet) parts.push(String(row.__archiveSheet).trim());
-  return parts.join("_").replace(/[^a-zA-Z0-9_-]+/g, "_");
-}
-
-function normalizeArchivePrescriptionRow(row) {
-  return {
-    ...row,
-    id: row?.id || makeArchiveRowId("arch_rx", row, ["fileNumber", "drugId", "dateTime", "createdAt"]),
-    qtyBoxes: Number(row?.qtyBoxes || 0),
-    qtyUnits: Number(row?.qtyUnits || 0),
-    fileNumber: String(row?.fileNumber || "").trim(),
-    status: String(row?.status || "Registered").trim() || "Registered",
-    __archived: true,
-    __archiveType: "prescription"
-  };
-}
-
-function normalizeArchiveTransactionRow(row) {
-  return {
-    ...row,
-    id: row?.id || makeArchiveRowId("arch_tx", row, ["type", "drugId", "dateTime", "createdAt"]),
-    qtyBoxes: Number(row?.qtyBoxes || 0),
-    qtyUnits: Number(row?.qtyUnits || 0),
-    type: String(row?.type || "").trim(),
-    __archived: true,
-    __archiveType: "transaction"
-  };
-}
-
-function normalizeArchiveNarcoticPrescriptionRow(row) {
-  return {
-    ...row,
-    id: row?.id || makeArchiveRowId("arch_nrx", row, ["fileNumber", "drugId", "dateTime", "createdAt"]),
-    quantitySent: Number(row?.quantitySent || row?.dispensedUnits || 0),
-    dispensedUnits: Number(row?.dispensedUnits || row?.quantitySent || 0),
-    fileNumber: String(row?.fileNumber || "").trim(),
-    status: String(row?.status || "Registered").trim() || "Registered",
-    __archived: true,
-    __archiveType: "narcoticPrescription"
-  };
-}
-
-function normalizeArchiveNarcoticMovementRow(row) {
-  return {
-    ...row,
-    id: row?.id || makeArchiveRowId("arch_nom", row, ["type", "departmentId", "drugId", "dateTime", "createdAt"]),
-    quantitySent: Number(row?.quantitySent || 0),
-    emptyAmpoulesReceived: Number(row?.emptyAmpoulesReceived || 0),
-    type: String(row?.type || "Transfer").trim() || "Transfer",
-    __archived: true,
-    __archiveType: "narcoticOrderMovement"
-  };
-}
-
-function getArchiveBucketNameForView(viewKey) {
-  if (viewKey === "patients" || viewKey === "prescriptions" || viewKey === "recentPrescriptions" || viewKey === "drugInterface") return "prescriptions";
-  if (viewKey === "transactions") return "transactions";
-  if (viewKey === "narcoticPrescriptions") return "narcoticPrescriptions";
-  if (viewKey === "narcoticMovements") return "narcoticOrderMovements";
-  return "";
-}
-
-async function loadArchiveBucket(bucketName, force = false) {
-  if (!bucketName) return [];
-  const cache = APP.archiveCache;
-  if (!force && cache.loadedAtMap?.[bucketName]) return cache[bucketName] || [];
-  if (cache.loadingMap?.[bucketName]) return cache[bucketName] || [];
-
-  cache.loadingMap[bucketName] = true;
-  cache.errorMap[bucketName] = "";
-
-  try {
-    const scope = APP.currentRole === "ADMIN" ? "" : currentScopePharmacy();
-    let rows = [];
-
-    if (bucketName === "prescriptions") {
-      rows = (await searchArchiveSheet("prescriptions_archive", { pharmacyScope: scope })).map(normalizeArchivePrescriptionRow);
-    } else if (bucketName === "transactions") {
-      rows = (await searchArchiveSheet("transactions_archive", { pharmacyScope: scope })).map(normalizeArchiveTransactionRow);
-    } else if (bucketName === "narcoticPrescriptions") {
-      rows = (await searchArchiveSheet("narcotic_prescriptions_archive", { pharmacyScope: scope })).map(normalizeArchiveNarcoticPrescriptionRow);
-    } else if (bucketName === "narcoticOrderMovements") {
-      rows = (await searchArchiveSheet("narcotic_order_movements_archive", { pharmacyScope: scope })).map(normalizeArchiveNarcoticMovementRow);
-    }
-
-    cache[bucketName] = rows;
-    cache.loadedAtMap[bucketName] = Date.now();
-    return rows;
-  } catch (error) {
-    cache.errorMap[bucketName] = String(error?.message || error || "Archive load failed");
-    console.error("Archive bucket load failed:", bucketName, error);
-    return cache[bucketName] || [];
-  } finally {
-    cache.loadingMap[bucketName] = false;
-  }
-}
-
-async function loadArchiveCaches(force = false) {
-  const buckets = ["prescriptions", "transactions", "narcoticPrescriptions", "narcoticOrderMovements"];
-  await Promise.all(buckets.map(bucket => loadArchiveBucket(bucket, force)));
-}
-
-function ensureArchiveCacheForMode(viewKey) {
-  const mode = APP.archiveView?.[viewKey] || ARCHIVE_VIEW_MODES.ALL;
-  if (mode === ARCHIVE_VIEW_MODES.CURRENT) return;
-  const bucketName = getArchiveBucketNameForView(viewKey);
-  if (!bucketName) return;
-  if (!APP.archiveCache.loadedAtMap?.[bucketName] && !APP.archiveCache.loadingMap?.[bucketName]) {
-    loadArchiveBucket(bucketName).then(() => renderAll()).catch(err => console.error(err));
-  }
-}
-
-function mergeArchiveRows(currentRows = [], archivedRows = [], mode = ARCHIVE_VIEW_MODES.ALL) {
-  if (mode === ARCHIVE_VIEW_MODES.CURRENT) return [...currentRows];
-  if (mode === ARCHIVE_VIEW_MODES.ARCHIVED) return [...archivedRows];
-  return [...currentRows, ...archivedRows];
-}
-
-function ensureArchiveToggleBar(viewKey, anchorEl, renderFn) {
-  if (!anchorEl) return;
-  const holderId = `archive_toggle_${viewKey}`;
-  let wrap = q(holderId);
-  if (!wrap) {
-    wrap = document.createElement("div");
-    wrap.id = holderId;
-    wrap.style.display = "flex";
-    wrap.style.alignItems = "center";
-    wrap.style.gap = "8px";
-    wrap.style.margin = "0 0 12px 0";
-    wrap.style.flexWrap = "wrap";
-    anchorEl.parentNode.insertBefore(wrap, anchorEl);
-  }
-  const currentMode = APP.archiveView?.[viewKey] || ARCHIVE_VIEW_MODES.ALL;
-  const bucketName = getArchiveBucketNameForView(viewKey);
-  const bucketLoading = bucketName ? !!APP.archiveCache.loadingMap?.[bucketName] : false;
-  const bucketError = bucketName ? String(APP.archiveCache.errorMap?.[bucketName] || "") : "";
-  const makeBtn = (mode, label) => `<button type="button" class="soft-btn mini-btn ${currentMode === mode ? 'active' : ''}" data-archive-view-key="${viewKey}" data-archive-view-mode="${mode}">${label}</button>`;
-  const loadingHtml = bucketLoading ? `<span class="subline" style="font-weight:700">Loading archive...</span>` : "";
-  const errorHtml = bucketError ? `<span class="badge" style="border-color:var(--danger);color:var(--danger)">${esc(bucketError)}</span>` : "";
-  wrap.innerHTML = `<span class="subline" style="font-weight:700">Data View</span>${makeBtn(ARCHIVE_VIEW_MODES.CURRENT, 'Current Data')}${makeBtn(ARCHIVE_VIEW_MODES.ARCHIVED, 'Archived Data')}${makeBtn(ARCHIVE_VIEW_MODES.ALL, 'All')}${loadingHtml}${errorHtml}`;
-  wrap.querySelectorAll('[data-archive-view-mode]').forEach(btn => {
-    btn.onclick = async () => {
-      APP.archiveView[viewKey] = btn.dataset.archiveViewMode || ARCHIVE_VIEW_MODES.ALL;
-      if (APP.archiveView[viewKey] !== ARCHIVE_VIEW_MODES.CURRENT && bucketName) await loadArchiveBucket(bucketName);
-      if (typeof renderFn === 'function') renderFn();
-    };
-  });
-}
-
-function archivedBadge() {
-  return `<span class="badge pending">Archived</span>`;
-}
-
-function getScopedPrescriptionRows(viewKey = "prescriptions") {
-  ensureArchiveCacheForMode(viewKey);
-  const scope = currentScopePharmacy();
-  const currentRows = APP.currentRole === "ADMIN"
-    ? [...(APP.cache.prescriptions || [])]
-    : (APP.cache.prescriptions || []).filter(row => String(row.pharmacy || "") === String(scope));
-  const archivedRows = APP.currentRole === "ADMIN"
-    ? [...(APP.archiveCache.prescriptions || [])]
-    : (APP.archiveCache.prescriptions || []).filter(row => String(row.pharmacy || "") === String(scope));
-  return mergeArchiveRows(currentRows, archivedRows, APP.archiveView?.[viewKey] || ARCHIVE_VIEW_MODES.ALL)
-    .sort((a, b) => String(b.dateTime || b.createdAt || "").localeCompare(String(a.dateTime || a.createdAt || "")));
-}
-
-function getScopedTransactionRows(viewKey = "transactions") {
-  ensureArchiveCacheForMode(viewKey);
-  const scope = currentScopePharmacy();
-  const currentRows = APP.currentRole === "ADMIN"
-    ? [...(APP.cache.transactions || [])]
-    : (APP.cache.transactions || []).filter(row => row.pharmacy === scope || String(row.pharmacy || "").includes(scope));
-  const archivedRows = APP.currentRole === "ADMIN"
-    ? [...(APP.archiveCache.transactions || [])]
-    : (APP.archiveCache.transactions || []).filter(row => String(row.pharmacy || "") === String(scope) || String(row.pharmacy || "").includes(scope) || String(row.fromPharmacy || "") === String(scope) || String(row.toPharmacy || "") === String(scope));
-  return mergeArchiveRows(currentRows, archivedRows, APP.archiveView?.[viewKey] || ARCHIVE_VIEW_MODES.ALL)
-    .sort((a, b) => String(b.dateTime || b.createdAt || "").localeCompare(String(a.dateTime || a.createdAt || "")));
-}
-
-function getScopedNarcoticPrescriptionRows(viewKey = "narcoticPrescriptions") {
-  ensureArchiveCacheForMode(viewKey);
-  return mergeArchiveRows(
-    [...(APP.cache.narcoticPrescriptions || [])],
-    [...(APP.archiveCache.narcoticPrescriptions || [])],
-    APP.archiveView?.[viewKey] || ARCHIVE_VIEW_MODES.ALL
-  ).sort((a, b) => String(b.dateTime || "").localeCompare(String(a.dateTime || "")));
-}
-
-function getScopedNarcoticMovementRows(viewKey = "narcoticMovements") {
-  ensureArchiveCacheForMode(viewKey);
-  return mergeArchiveRows(
-    [...(APP.cache.narcoticOrderMovements || [])],
-    [...(APP.archiveCache.narcoticOrderMovements || [])],
-    APP.archiveView?.[viewKey] || ARCHIVE_VIEW_MODES.ALL
-  ).sort((a, b) => String(b.dateTime || "").localeCompare(String(a.dateTime || "")));
-}
-
-function getNormalTransactionById(id) {
-  return getScopedTransactionRows("transactions").find(item => String(item.id) === String(id));
-}
-
-function getNarcoticTransactionById(id) {
-  return getScopedNarcoticMovementRows("narcoticMovements").find(item => String(item.id) === String(id));
-}
-
-function canMutatePrescriptionRow(row) {
-  return !!row && !row.__archived;
-}
 
 async function archiveTableRows({
   sourceTable,
@@ -1146,6 +827,238 @@ function queueAutomaticArchiveCheck() {
 
 
 
+const ARCHIVE_VIEW_MODES = { CURRENT: "current", ARCHIVED: "archived", ALL: "all" };
+const ARCHIVE_BUCKET_CONFIG = {
+  prescriptions: { sheetName: "prescriptions_archive", cacheKey: "prescriptions" },
+  transactions: { sheetName: "transactions_archive", cacheKey: "transactions" },
+  narcoticPrescriptions: { sheetName: "narcotic_prescriptions_archive", cacheKey: "narcoticPrescriptions" },
+  narcoticOrderMovements: { sheetName: "narcotic_order_movements_archive", cacheKey: "narcoticOrderMovements" }
+};
+
+function archiveRowId(prefix, row) {
+  const base = `${row?.id || ''}_${row?.dateTime || row?.createdAt || row?.started_at || ''}_${row?.fileNumber || row?.invoiceNumber || row?.type || ''}`;
+  return `${prefix}_${String(base).replace(/[^a-zA-Z0-9_-]+/g, '_')}`;
+}
+
+function normalizeArchivePrescriptionRow(row = {}) {
+  return {
+    ...row,
+    id: row.id || archiveRowId('arch_rx', row),
+    qtyBoxes: Number(row.qtyBoxes || 0),
+    qtyUnits: Number(row.qtyUnits || 0),
+    __archived: true,
+    __archiveSheet: row.__archiveSheet || 'prescriptions_archive'
+  };
+}
+
+function normalizeArchiveTransactionRow(row = {}) {
+  return {
+    ...row,
+    id: row.id || archiveRowId('arch_tx', row),
+    qtyBoxes: Number(row.qtyBoxes || 0),
+    qtyUnits: Number(row.qtyUnits || 0),
+    __archived: true,
+    __archiveSheet: row.__archiveSheet || 'transactions_archive'
+  };
+}
+
+function normalizeArchiveNarcoticPrescriptionRow(row = {}) {
+  return {
+    ...row,
+    id: row.id || archiveRowId('arch_nrx', row),
+    dispensedUnits: Number(row.dispensedUnits || row.quantitySent || 0),
+    __archived: true,
+    __archiveSheet: row.__archiveSheet || 'narcotic_prescriptions_archive'
+  };
+}
+
+function normalizeArchiveNarcoticMovementRow(row = {}) {
+  return {
+    ...row,
+    id: row.id || archiveRowId('arch_nom', row),
+    quantitySent: Number(row.quantitySent || 0),
+    quantityReceived: Number(row.quantityReceived || 0),
+    dispensedUnits: Number(row.dispensedUnits || 0),
+    emptyAmpoulesReceived: Number(row.emptyAmpoulesReceived || 0),
+    __archived: true,
+    __archiveSheet: row.__archiveSheet || 'narcotic_order_movements_archive'
+  };
+}
+
+function normalizeArchiveBucketRows(bucket, rows) {
+  if (bucket === 'prescriptions') return (rows || []).map(normalizeArchivePrescriptionRow);
+  if (bucket === 'transactions') return (rows || []).map(normalizeArchiveTransactionRow);
+  if (bucket === 'narcoticPrescriptions') return (rows || []).map(normalizeArchiveNarcoticPrescriptionRow);
+  if (bucket === 'narcoticOrderMovements') return (rows || []).map(normalizeArchiveNarcoticMovementRow);
+  return rows || [];
+}
+
+function buildArchiveScriptUrl(sheetName, params = {}) {
+  const url = new URL(ARCHIVE_WEBAPP_URL);
+  url.searchParams.set('action', 'search_archive');
+  url.searchParams.set('secret', ARCHIVE_SECRET);
+  url.searchParams.set('sheetName', sheetName);
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && String(value) !== '') url.searchParams.set(key, String(value));
+  });
+  return url.toString();
+}
+
+function loadArchiveJsonp(sheetName, params = {}) {
+  return new Promise((resolve, reject) => {
+    const callbackName = `cdmsArchiveCallback_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const script = document.createElement('script');
+    const timeout = window.setTimeout(() => {
+      cleanup();
+      reject(new Error(`Archive request timed out for ${sheetName}`));
+    }, 15000);
+
+    function cleanup() {
+      window.clearTimeout(timeout);
+      try { delete window[callbackName]; } catch (_) { window[callbackName] = undefined; }
+      if (script.parentNode) script.parentNode.removeChild(script);
+    }
+
+    window[callbackName] = (payload) => {
+      cleanup();
+      resolve(payload || {});
+    };
+
+    script.async = true;
+    script.src = buildArchiveScriptUrl(sheetName, { ...params, callback: callbackName });
+    script.onerror = () => {
+      cleanup();
+      reject(new Error(`Archive script load failed for ${sheetName}`));
+    };
+    document.head.appendChild(script);
+  });
+}
+
+async function loadArchiveBucket(bucket, { force = false } = {}) {
+  const config = ARCHIVE_BUCKET_CONFIG[bucket];
+  if (!config) return [];
+  const cache = APP.archiveCache?.[config.cacheKey];
+  if (!cache) return [];
+  if (cache.loading) return cache.loading;
+  if (cache.loaded && !force) return cache.rows || [];
+
+  const pharmacyScope = APP.currentRole === 'ADMIN' ? '' : currentScopePharmacy();
+  cache.loading = (async () => {
+    try {
+      const result = await loadArchiveJsonp(config.sheetName, { pharmacyScope });
+      if (result?.success !== true) throw new Error(result?.error || `Archive request failed for ${config.sheetName}`);
+      cache.rows = normalizeArchiveBucketRows(bucket, result.rows || []);
+      cache.loaded = true;
+      return cache.rows;
+    } catch (error) {
+      console.error(`Archive bucket load failed: ${bucket}`, error);
+      cache.rows = [];
+      cache.loaded = false;
+      return [];
+    } finally {
+      cache.loading = null;
+    }
+  })();
+  return cache.loading;
+}
+
+function archiveRowsFor(bucket) {
+  const config = ARCHIVE_BUCKET_CONFIG[bucket];
+  return config ? (APP.archiveCache?.[config.cacheKey]?.rows || []) : [];
+}
+
+function getArchiveMode(section) {
+  return APP.archiveView?.[section] || ARCHIVE_VIEW_MODES.ALL;
+}
+
+function setArchiveMode(section, mode) {
+  if (!APP.archiveView) APP.archiveView = {};
+  APP.archiveView[section] = mode;
+  if (section === 'dashboard') { renderDashboard(); renderDrugRows(); renderRecentPrescriptionsModal(); }
+  else if (section === 'patients') renderPatientsPage();
+  else if (section === 'prescriptions') renderPrescriptions();
+  else if (section === 'transactions') renderTransactions();
+  else if (section === 'narcoticPrescriptions') { renderNarcoticRecent(); renderNarcoticRecentRows(); }
+  else if (section === 'narcoticMovements') renderNarcoticTransactionsTable();
+}
+
+function archiveToggleHtml(section) {
+  const mode = getArchiveMode(section);
+  const item = (value, label) => `<button type="button" class="soft-btn mini-btn ${mode === value ? 'active' : ''}" data-archive-mode="${section}:${value}">${label}</button>`;
+  return `<div class="archive-toggle-wrap" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:8px 0 12px"><span class="subline" style="font-weight:700">Data View</span>${item('current','Current Data')}${item('archived','Archived Data')}${item('all','All')}</div>`;
+}
+
+function mountArchiveToggle(hostEl, section, options = {}) {
+  if (!hostEl) return;
+  const panelId = options.panelId || `${section}ArchiveToggle`;
+  let panel = document.getElementById(panelId);
+  if (!panel) {
+    panel = document.createElement('div');
+    panel.id = panelId;
+    if (options.prepend) hostEl.prepend(panel);
+    else if (options.beforeEl && options.beforeEl.parentNode === hostEl) hostEl.insertBefore(panel, options.beforeEl);
+    else hostEl.appendChild(panel);
+  }
+  panel.innerHTML = archiveToggleHtml(section);
+  panel.querySelectorAll('[data-archive-mode]').forEach(btn => {
+    btn.onclick = async () => {
+      const [sec, mode] = String(btn.dataset.archiveMode || '').split(':');
+      if (mode !== ARCHIVE_VIEW_MODES.CURRENT) {
+        if (sec === 'dashboard' || sec === 'patients' || sec === 'prescriptions') await loadArchiveBucket('prescriptions');
+        if (sec === 'transactions') await loadArchiveBucket('transactions');
+        if (sec === 'narcoticPrescriptions') await loadArchiveBucket('narcoticPrescriptions');
+        if (sec === 'narcoticMovements') await loadArchiveBucket('narcoticOrderMovements');
+      }
+      setArchiveMode(sec, mode);
+    };
+  });
+}
+
+function isArchivedRow(row) {
+  return !!row?.__archived;
+}
+
+function archivedLabelHtml(row) {
+  return isArchivedRow(row) ? ' <span class="badge pending">Archived</span>' : '';
+}
+
+function mergeArchiveModeRows(currentRows, archivedRows, mode) {
+  if (mode === ARCHIVE_VIEW_MODES.CURRENT) return [...currentRows];
+  if (mode === ARCHIVE_VIEW_MODES.ARCHIVED) return [...archivedRows];
+  return [...currentRows, ...archivedRows];
+}
+
+function getScopedPrescriptionRows(mode = ARCHIVE_VIEW_MODES.ALL) {
+  const scope = currentScopePharmacy();
+  const currentRows = APP.currentRole === 'ADMIN' ? [...(APP.cache.prescriptions || [])] : (APP.cache.prescriptions || []).filter(row => String(row.pharmacy || '') === String(scope));
+  const archivedRows = APP.currentRole === 'ADMIN' ? archiveRowsFor('prescriptions') : archiveRowsFor('prescriptions').filter(row => String(row.pharmacy || '') === String(scope));
+  return mergeArchiveModeRows(currentRows, archivedRows, mode).sort((a, b) => String(b.dateTime || '').localeCompare(String(a.dateTime || '')));
+}
+
+function getMergedTransactionRows(mode = ARCHIVE_VIEW_MODES.ALL) {
+  const scope = currentScopePharmacy();
+  const currentRows = APP.currentRole === 'ADMIN' ? [...(APP.cache.transactions || [])] : (APP.cache.transactions || []).filter(row => row.pharmacy === scope || String(row.pharmacy || '').includes(scope));
+  const archivedRows = APP.currentRole === 'ADMIN' ? archiveRowsFor('transactions') : archiveRowsFor('transactions').filter(row => row.pharmacy === scope || String(row.pharmacy || '').includes(scope) || String(row.fromPharmacy || '') === String(scope) || String(row.toPharmacy || '') === String(scope));
+  return mergeArchiveModeRows(currentRows, archivedRows, mode).sort((a, b) => String(b.dateTime || '').localeCompare(String(a.dateTime || '')));
+}
+
+function getMergedNarcoticPrescriptionRows(mode = ARCHIVE_VIEW_MODES.ALL) {
+  return mergeArchiveModeRows(APP.cache.narcoticPrescriptions || [], archiveRowsFor('narcoticPrescriptions'), mode).sort((a, b) => String(b.dateTime || '').localeCompare(String(a.dateTime || '')));
+}
+
+function getMergedNarcoticMovementRows(mode = ARCHIVE_VIEW_MODES.ALL) {
+  return mergeArchiveModeRows(APP.cache.narcoticOrderMovements || [], archiveRowsFor('narcoticOrderMovements'), mode).sort((a, b) => String(b.dateTime || '').localeCompare(String(a.dateTime || '')));
+}
+
+async function ensureArchiveCacheForSection(section) {
+  const mode = getArchiveMode(section);
+  if (mode === ARCHIVE_VIEW_MODES.CURRENT) return;
+  if (section === 'dashboard' || section === 'patients' || section === 'prescriptions') await loadArchiveBucket('prescriptions');
+  if (section === 'transactions') await loadArchiveBucket('transactions');
+  if (section === 'narcoticPrescriptions') await loadArchiveBucket('narcoticPrescriptions');
+  if (section === 'narcoticMovements') await loadArchiveBucket('narcoticOrderMovements');
+}
+
 const q = id => document.getElementById(id);
 const esc = value => String(value ?? "").replace(/[&<>"']/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[ch]));
 const todayKey = () => { const p = jordanDateParts(); return `${p.year}-${p.month}-${p.day}`; };
@@ -1419,12 +1332,12 @@ function sortDrugsAlphabetically(drugs) {
   return [...drugs].sort((a, b) => `${a.tradeName || ""} ${a.strength || ""}`.localeCompare(`${b.tradeName || ""} ${b.strength || ""}`));
 }
 
-function prescriptionScopeRows(viewKey = "prescriptions") {
-  return getScopedPrescriptionRows(viewKey);
+function prescriptionScopeRows() {
+  return getScopedPrescriptionRows(getArchiveMode('dashboard'));
 }
 
-function transactionScopeRows(viewKey = "transactions") {
-  return getScopedTransactionRows(viewKey);
+function transactionScopeRows() {
+  return getMergedTransactionRows(getArchiveMode('transactions'));
 }
 
 function unitLabel(drug) {
@@ -1758,7 +1671,6 @@ async function tryRestoreSession() {
   q("appShell").classList.remove("hidden");
   updateLayoutMode();
   showPage("dashboard");
-  loadArchiveCaches(true).then(() => renderAll()).catch(err => console.error(err));
   startRealtimeSyncEnhancements();
   if (APP.currentRole === "ADMIN") loadArchiveStatus();
   queueAutomaticArchiveCheck();
@@ -1936,8 +1848,7 @@ function renderRecentPrescriptionsModal() {
   const to = q("recentPrescriptionsTo")?.value || "";
   const effectiveFrom = from || (!to ? jordanDateKey() : "");
   const effectiveTo = to || (!from ? jordanDateKey() : "");
-  ensureArchiveToggleBar("recentPrescriptions", q("recentPrescriptionsTbody")?.closest(".table-shell") || q("recentPrescriptionsTbody"), renderRecentPrescriptionsModal);
-  const rows = getScopedPrescriptionRows("recentPrescriptions")
+  const rows = getScopedPrescriptionRows(getArchiveMode('dashboard'))
     .filter(row => {
       const hay = `${row.patientName} ${row.fileNumber} ${row.doctorName} ${row.pharmacistName}`.toLowerCase();
       const drugHay = `${APP.cache.drugs.find(d => d.id === row.drugId)?.tradeName || ""} ${APP.cache.drugs.find(d => d.id === row.drugId)?.strength || ""}`.toLowerCase();
@@ -1961,8 +1872,8 @@ function renderRecentPrescriptionsModal() {
         <td>${esc(row.pharmacy || "")}</td>
         <td>${Number(row.qtyBoxes || 0)}</td>
         <td>${Number(row.qtyUnits || 0)}</td>
-        <td>${row.__archived ? archivedBadge() : statusBadge(row.status || "Registered")}</td>
-        <td class="rx-actions-cell">${buildPrescriptionActionsDropdown(row, { prefix: "recent" })}</td>
+        <td>${statusBadge(row.status || "Registered")}</td>
+        <td class="rx-actions-cell">${isArchivedRow(row) ? '<span class="muted">Archived</span>' : buildPrescriptionActionsDropdown(row, { prefix: "recent" })}</td>
       </tr>`;
   }).join("") || `<tr><td colspan="10" class="empty-state">No recent prescriptions found.</td></tr>`;
 }
@@ -1980,8 +1891,7 @@ function getFilteredTransactionsRows() {
   const effectiveFrom = from || (!to ? jordanDateKey() : "");
   const effectiveTo = to || (!from ? jordanDateKey() : "");
 
-  ensureArchiveToggleBar("transactions", q("transactionsTbody")?.closest(".table-shell") || q("transactionsTbody"), renderTransactions);
-  return getScopedTransactionRows("transactions").filter(row => {
+  return transactionScopeRows().filter(row => {
     const haystack = `${row.type} ${row.tradeName} ${row.pharmacy} ${row.performedBy} ${row.note} ${row.receiverPharmacist || ""} ${row.receivedBy || ""} ${row.invoiceNumber || ""} ${row.invoiceDate || ""} ${row.patientName || ""} ${row.fileNumber || ""} ${row.doctorName || ""}`.toLowerCase();
     const day = formatJordanDateTime(row.dateTime).slice(0, 10);
     const normalizedType = String(row.type || "");
@@ -2463,17 +2373,18 @@ function printInventoryAuditReport() {
 
 
 function renderDashboard() {
+  ensureArchiveCacheForSection('dashboard');
   const scope = currentScopePharmacy();
-  const recentHost = q("recentList")?.parentElement || q("recentList");
-  if (recentHost) ensureArchiveToggleBar("recentPrescriptions", recentHost, renderDashboard);
-  const scopedPrescriptions = getScopedPrescriptionRows("recentPrescriptions");
+  const scopedPrescriptions = prescriptionScopeRows();
   const cardSearch = (q("drugCardsSearch").value || "").toLowerCase();
 
   const today = jordanDateKey();
-  const dashboardCurrentRows = (APP.currentRole === "ADMIN" ? [...(APP.cache.prescriptions || [])] : (APP.cache.prescriptions || []).filter(p => String(p.pharmacy || "") === String(scope)));
-  q("metricRegistered").textContent = dashboardCurrentRows.filter(p => formatJordanDateTime(p.dateTime).slice(0,10) === today).length;
-  q("metricPending").textContent = dashboardCurrentRows.filter(p => (p.status || "") === "Pending" && formatJordanDateTime(p.dateTime).slice(0,10) === today).length;
-  q("metricReturned").textContent = dashboardCurrentRows.filter(p => (p.status || "") === "Returned" && formatJordanDateTime(p.dateTime).slice(0,10) === today).length;
+  q("metricRegistered").textContent = scopedPrescriptions.filter(p => formatJordanDateTime(p.dateTime).slice(0,10) === today).length;
+  q("metricPending").textContent = scopedPrescriptions.filter(p => (p.status || "") === "Pending" && formatJordanDateTime(p.dateTime).slice(0,10) === today).length;
+  q("metricReturned").textContent = scopedPrescriptions.filter(p => (p.status || "") === "Returned" && formatJordanDateTime(p.dateTime).slice(0,10) === today).length;
+
+  const dashboardArchiveHost = q("recentList")?.parentElement;
+  if (dashboardArchiveHost) mountArchiveToggle(dashboardArchiveHost, 'dashboard', { prepend: true, panelId: 'dashboardArchiveTogglePanel' });
 
   q("recentList").innerHTML = scopedPrescriptions.slice(0, 7).map(p => {
     const drug = APP.cache.drugs.find(d => d.id === p.drugId);
@@ -2487,7 +2398,7 @@ function renderDashboard() {
         <div class="subline">${esc(formatJordanDateTime(p.dateTime))}</div>
         <div class="subline">${Number(p.qtyBoxes || 0)} box(es) + ${Number(p.qtyUnits || 0)} ${esc(unitLabel(drug))}</div>
         <div class="recent-row-actions">
-          ${p.__archived ? archivedBadge() : (p.status === "Returned" ? statusBadge("Returned") : buildPrescriptionActionsDropdown(p, { prefix: "latest" }))}
+          ${isArchivedRow(p) ? '<span class="badge pending">Archived</span>' : (p.status === "Returned" ? statusBadge("Returned") : buildPrescriptionActionsDropdown(p, { prefix: "latest" }))}
         </div>
       </div>`;
   }).join("") || `<div class="empty-state">No prescriptions found for ${esc(scope)}.</div>`;
@@ -2579,6 +2490,9 @@ function formatDoseSummaryForAudit(row) {
 }
 
 function renderTransactions() {
+  ensureArchiveCacheForSection('transactions');
+  const shell = q("transactionsTbody")?.closest('.table-shell') || q("transactionsTbody")?.parentElement;
+  if (shell) mountArchiveToggle(shell, 'transactions', { prepend: true, panelId: 'transactionsArchiveTogglePanel' });
   const rows = getFilteredTransactionsRows();
   q("transactionsTbody").innerHTML = rows.map(row => {
     const typeClass = String(row.type || '').toLowerCase().replace(/[^a-z0-9]+/g, '-');
@@ -2593,7 +2507,7 @@ function renderTransactions() {
         <td>${Number(row.qtyUnits || 0)}</td>
         <td>${esc(by)}</td>
         <td>${esc(note)}</td>
-        <td><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">${row.__archived ? archivedBadge() : ""}<button class="soft-btn mini-btn transaction-details-btn" data-scope="normal" data-id="${esc(row.id)}">Details</button></div></td>
+        <td><button class="soft-btn mini-btn transaction-details-btn" data-scope="normal" data-id="${esc(row.id)}">Details${isArchivedRow(row) ? ' · Archived' : ''}</button></td>
       </tr>`;
   }).join("") || `<tr><td colspan="8" class="empty-state">No transactions found.</td></tr>`;
 }
@@ -2610,8 +2524,8 @@ function getFilteredPrescriptionsRows() {
   const effectiveTo = to || (!from ? jordanDateKey() : "");
   const drugId = q("prescriptionsDrugFilter")?.value || "";
   const pharmacyFilter = q("prescriptionsPharmacyFilter")?.value || "";
-  ensureArchiveToggleBar("prescriptions", q("prescriptionsTbody")?.closest(".table-shell") || q("prescriptionsTbody"), renderPrescriptions);
-  return getScopedPrescriptionRows("prescriptions").filter(row => {
+  const baseRows = getScopedPrescriptionRows(getArchiveMode('prescriptions'));
+  return baseRows.filter(row => {
     if (!canViewPharmacy(row.pharmacy)) return false;
     const day = formatJordanDateTime(row.dateTime).slice(0,10);
     const drug = APP.cache.drugs.find(d => d.id === row.drugId);
@@ -2627,6 +2541,9 @@ function getFilteredPrescriptionsRows() {
 
 function renderPrescriptions() {
   if (!q("prescriptionsTbody")) return;
+  ensureArchiveCacheForSection('prescriptions');
+  const shell = q("prescriptionsTbody")?.closest('.table-shell') || q("prescriptionsTbody")?.parentElement;
+  if (shell) mountArchiveToggle(shell, 'prescriptions', { prepend: true, panelId: 'prescriptionsArchiveTogglePanel' });
   const rows = getFilteredPrescriptionsRows();
   q("prescriptionsTbody").innerHTML = rows.map(row => {
     const drug = APP.cache.drugs.find(d => d.id === row.drugId);
@@ -2638,8 +2555,8 @@ function renderPrescriptions() {
       <td>${esc(row.pharmacy || "")}</td>
       <td>${Number(row.qtyBoxes || 0)}</td>
       <td>${Number(row.qtyUnits || 0)}</td>
-      <td>${row.__archived ? archivedBadge() : statusBadge(row.status || "Registered")}</td>
-      <td class="rx-actions-cell">${buildPrescriptionActionsDropdown(row, { prefix: "prescriptions" })}</td>
+      <td>${statusBadge(row.status || "Registered")}${archivedLabelHtml(row)}</td>
+      <td class="rx-actions-cell">${isArchivedRow(row) ? '<span class="muted">Archived</span>' : buildPrescriptionActionsDropdown(row, { prefix: "prescriptions" })}</td>
     </tr>`;
   }).join("") || `<tr><td colspan="9" class="empty-state">No prescriptions found.</td></tr>`;
 }
@@ -3200,8 +3117,7 @@ function findScientificNameSupply(fileNumber, drugId) {
   const scientificName = String(targetDrug?.scientificName || "").trim().toLowerCase();
   const targetStrength = String(targetDrug?.strength || "").trim().toLowerCase();
   if (!scientificName) return [];
-  ensureArchiveToggleBar("patients", q("patientsTbody")?.closest(".table-shell") || q("patientsTbody"), renderPatientsPage);
-  return getScopedPrescriptionRows("patients")
+  return getScopedPrescriptionRows(getArchiveMode('patients'))
     .filter(rx => normalizeFileNumber(rx.fileNumber) === normalizeFileNumber(fileNumber))
     .filter(rx => String(rx.status || "").toLowerCase() !== "returned")
     .map(rx => calculatePrescriptionSupply(rx))
@@ -3230,8 +3146,7 @@ function getFilteredPatientRows() {
   const toDate = q("patientsToFilter")?.value || "";
   const search = String(q("patientsSearchFilter")?.value || "").trim().toLowerCase();
 
-  ensureArchiveToggleBar("patients", q("patientsTbody")?.closest(".table-shell") || q("patientsTbody"), renderPatientsPage);
-  return getScopedPrescriptionRows("patients")
+  return getScopedPrescriptionRows(getArchiveMode('patients'))
     .filter(rx => WORK_PHARMACIES.includes(rx.pharmacy))
     .map(rx => ({ rx, calc: calculatePrescriptionSupply(rx) }))
     .filter(({ rx, calc }) => {
@@ -3271,13 +3186,16 @@ function buildPatientDetailCard(rx, calc) {
       <div class="patient-detail-item"><span>Scientific Name Matches</span><strong>${scientificMatches.length} related prescription(s)</strong></div>
     </div>
     <div class="patient-detail-actions">
-      ${rx.__archived ? archivedBadge() : `<button class="soft-btn add-dose-btn" data-add-dose="${esc(rx.id)}">Add Dose</button>`}
+      <button class="soft-btn add-dose-btn" data-add-dose="${esc(rx.id)}">Add Dose</button>
     </div>
   </div>`;
 }
 
 function renderPatientsPage() {
   if (!q("patientsTbody")) return;
+  ensureArchiveCacheForSection('patients');
+  const shell = q("patientsTbody")?.closest('.table-shell') || q("patientsTbody")?.parentElement;
+  if (shell) mountArchiveToggle(shell, 'patients', { prepend: true, panelId: 'patientsArchiveTogglePanel' });
   const fileFilter = normalizeFileNumber(q("patientsFileFilter")?.value || "");
   if (!fileFilter) {
     ["patientsTotalRx","patientsActiveMedications","patientsRemainingUnits","patientsClinicalAlerts"].forEach(id => { if (q(id)) q(id).textContent = "0"; });
@@ -3312,16 +3230,16 @@ function renderPatientsPage() {
       <td>${esc(rx.fileNumber || "")}</td>
       <td>${esc(rx.pharmacy || "")}</td>
       <td>${esc(qtyText)}</td>
-      <td><span class="patient-status-chip ${esc(statusCls)}">${esc(statusLabel)}</span></td>
+      <td><span class="patient-status-chip ${esc(statusCls)}">${esc(statusLabel)}</span>${archivedLabelHtml(rx)}</td>
       <td>${esc(formatRemainingText(calc))}</td>
-      <td>${rx.__archived ? archivedBadge() : `<button class="soft-btn add-dose-btn" data-add-dose="${esc(rx.id)}">Add Dose</button>`}</td>
+      <td>${isArchivedRow(rx) ? '<span class="muted">Archived</span>' : `<button class="soft-btn add-dose-btn" data-add-dose="${esc(rx.id)}">Add Dose</button>`}</td>
     </tr>${isOpen ? `<tr class="patient-detail-row"><td colspan="10">${buildPatientDetailCard(rx, calc)}</td></tr>` : ""}`;
   }).join("") : `<tr><td colspan="10" class="empty-state">No patient prescriptions found for the selected filters.</td></tr>`;
 }
 
 function openAddDoseModal(prescriptionId) {
-  const rx = (APP.cache.prescriptions || []).find(item => String(item.id) === String(prescriptionId));
-  if (!rx || !canViewPharmacy(rx.pharmacy) || rx.__archived) return;
+  const rx = getScopedPrescriptionRows(getArchiveMode('patients')).find(item => String(item.id) === String(prescriptionId));
+  if (!rx || !canViewPharmacy(rx.pharmacy) || isArchivedRow(rx)) return;
   APP.currentDosePrescriptionId = rx.id;
   const drug = getDrugById(rx.drugId);
   const currentDose = getActiveDoseForPrescription(rx.id);
@@ -3339,7 +3257,7 @@ function openAddDoseModal(prescriptionId) {
 }
 
 function updateDosePreview() {
-  const rx = (APP.cache.prescriptions || []).find(item => String(item.id) === String(APP.currentDosePrescriptionId || ""));
+  const rx = getScopedPrescriptionRows(getArchiveMode('patients')).find(item => String(item.id) === String(APP.currentDosePrescriptionId || ""));
   if (!rx || !canViewPharmacy(rx.pharmacy)) return;
   const drug = getDrugById(rx.drugId);
   const tempDose = {
@@ -3357,7 +3275,7 @@ function updateDosePreview() {
 }
 
 async function saveDoseForPrescription() {
-  const rx = (APP.cache.prescriptions || []).find(item => String(item.id) === String(APP.currentDosePrescriptionId || ""));
+  const rx = getScopedPrescriptionRows(getArchiveMode('patients')).find(item => String(item.id) === String(APP.currentDosePrescriptionId || ""));
   if (!rx || !canViewPharmacy(rx.pharmacy)) return;
   const drug = getDrugById(rx.drugId);
   const unitsPerDose = Number(q("doseUnitsPerDose")?.value || 0);
@@ -3525,7 +3443,6 @@ async function doLogin(portalRole, employeeNumber, password) {
   q("appShell").classList.remove("hidden");
   updateLayoutMode();
   showPage("dashboard");
-  loadArchiveCaches(true).then(() => renderAll()).catch(err => console.error(err));
   startRealtimeSyncEnhancements();
   queueAutomaticArchiveCheck();
 
@@ -4115,8 +4032,7 @@ function renderDrugRows() {
   const to = q("drugRxToDate")?.value || "";
   const effectiveFrom = from || (!to ? jordanDateKey() : "");
   const effectiveTo = to || (!from ? jordanDateKey() : "");
-  ensureArchiveToggleBar("drugInterface", q("drugRxTbody")?.closest(".table-shell") || q("drugRxTbody"), renderDrugRows);
-  const rows = getScopedPrescriptionRows("drugInterface").filter(row => {
+  const rows = prescriptionScopeRows().filter(row => {
     if (row.drugId !== APP.selectedDrugId) return false;
     const day = formatJordanDateTime(row.dateTime).slice(0, 10);
     if (effectiveFrom && day < effectiveFrom) return false;
@@ -4138,8 +4054,8 @@ function renderDrugRows() {
       <td>${Number(row.qtyUnits || 0)}</td>
       <td>${esc(row.doctorName || "")}</td>
       <td>${esc(row.pharmacistName || "")}</td>
-      <td>${row.__archived ? 'Archived' : esc(row.status || "")}</td>
-      <td class="rx-actions-cell">${buildPrescriptionActionsDropdown(row, { prefix: "drug" })}</td>
+      <td>${esc(row.status || "")}${archivedLabelHtml(row)}</td>
+      <td class="rx-actions-cell">${isArchivedRow(row) ? '<span class="muted">Archived</span>' : buildPrescriptionActionsDropdown(row, { prefix: "drug" })}</td>
     </tr>`;
   }).join("") || `<tr><td colspan="9" class="empty-state">No prescriptions for this drug in the selected range.</td></tr>`;
   renderLiveClocks();
@@ -4370,7 +4286,7 @@ async function addDrug() {
 
 function buildPrescriptionActionsDropdown(row, { prefix = "rx" } = {}) {
   if (!row) return `<span class="muted">-</span>`;
-  if (row.__archived) return archivedBadge();
+  if (isArchivedRow(row)) return `<span class="badge pending">Archived</span>`;
   const allowed = canEditPrescription(row);
   const canDelete = prefix === "narcotic" ? (APP.currentRole === "ADMIN" || APP.currentPortal === "IN_PATIENT_USER" || canCurrentUserAudit()) : canDeletePrescriptionRow(row);
   const menuId = `rx_actions_${prefix}_${row.id}`;
@@ -5071,8 +4987,7 @@ function getFilteredNarcoticTransactionsRows() {
   const { drugId, type, from, to, search } = narcoticTransactionsFilters();
   const hasRange = !!(from || to);
   const defaultDay = jordanDateKey();
-  ensureArchiveToggleBar("narcoticMovements", q("narcoticTransactionsTbody")?.closest(".table-shell") || q("narcoticTransactionsTbody"), renderNarcoticTransactionsTable);
-  return getScopedNarcoticMovementRows("narcoticMovements").filter(row => {
+  return getMergedNarcoticMovementRows(getArchiveMode('narcoticMovements')).filter(row => {
     const day = String(formatJordanDateTime(row.dateTime)).slice(0, 10);
     if (hasRange) {
       if (from && day < from) return false;
@@ -5142,8 +5057,8 @@ function resetNarcoticEntryForm() {
   updateNarcoticAvailableStock();
 }
 function narcoticActionMenu(row) {
-  if (!row) return `<span class=\"muted\">-</span>`;
-  if (row.__archived) return archivedBadge();
+  if (!row) return `<span class="muted">-</span>`;
+  if (isArchivedRow(row)) return `<span class="badge pending">Archived</span>`;
   if (APP.currentRole === "ADMIN" || APP.currentRole === "IN_PATIENT_USER") {
     return buildPrescriptionActionsDropdown({ id: row.id, status: row.status || "Registered" }, { prefix: "narcotic" });
   }
@@ -5173,7 +5088,7 @@ function renderNarcoticDispensingChart() {
     days.push(formatJordanDateTime(d).slice(0,10));
   }
   const data = days.map(day => {
-    const total = APP.cache.narcoticPrescriptions.filter(r => {
+    const total = getMergedNarcoticPrescriptionRows(getArchiveMode('narcoticPrescriptions')).filter(r => {
       const rowDay = String(formatJordanDateTime(r.dateTime)).slice(0,10);
       if (rowDay !== day) return false;
       if (drugId && r.drugId !== drugId) return false;
@@ -5277,7 +5192,10 @@ async function removeDrugFromNarcoticDepartment(drugId) {
 
 function renderNarcoticRecent() {
   if (!q("narcoticRecentTbody")) return;
-  const rows = getScopedNarcoticPrescriptionRows("narcoticPrescriptions").slice(0,7);
+  ensureArchiveCacheForSection('narcoticPrescriptions');
+  const shell = q("narcoticRecentTbody")?.closest('.table-shell') || q("narcoticRecentTbody")?.parentElement;
+  if (shell) mountArchiveToggle(shell, 'narcoticPrescriptions', { prepend: true, panelId: 'narcoticRecentArchiveTogglePanel' });
+  const rows = getMergedNarcoticPrescriptionRows(getArchiveMode('narcoticPrescriptions')).slice(0,7);
   q("narcoticRecentTbody").innerHTML = rows.map(row => {
     const drug = narcoticDrugById(row.drugId);
     const dept = narcoticDeptById(row.departmentId);
@@ -5289,7 +5207,7 @@ function renderNarcoticRecent() {
       <td>${Number(row.dispensedUnits || 0)}</td>
       <td>${esc(row.discardDose || "")}</td>
       <td>${esc(row.pharmacist || "")}</td>
-      <td>${row.__archived ? archivedBadge() : narcoticActionMenu(row)}</td>
+      <td>${isArchivedRow(row) ? '<span class="badge pending">Archived</span>' : narcoticActionMenu(row)}</td>
     </tr>`;
   }).join("") || `<tr><td colspan="8" class="empty-state">No narcotic prescriptions found.</td></tr>`;
 }
@@ -5403,11 +5321,11 @@ function buildTransferBatchDetails(rows) {
 function buildNormalTransactionDetails(row) {
   if (!row) return `<div class="empty-state">Transaction not found.</div>`;
   if (row.type === "Receive Shipment") {
-    const rows = getScopedTransactionRows("transactions").filter(r => (row.batchId && r.batchId === row.batchId) || r.id === row.id);
+    const rows = (APP.cache.transactions || []).filter(r => (row.batchId && r.batchId === row.batchId) || r.id === row.id);
     return buildNormalTransactionPrintSection("shipment", rows);
   }
   if (row.type === "Transfer") {
-    const rows = getScopedTransactionRows("transactions").filter(r => (row.batchId && r.batchId === row.batchId) || r.id === row.id);
+    const rows = (APP.cache.transactions || []).filter(r => (row.batchId && r.batchId === row.batchId) || r.id === row.id);
     return buildNormalTransactionPrintSection("transfer", rows);
   }
   if (row.type === "Return") return buildNormalTransactionPrintSection("return", [row]);
@@ -5445,11 +5363,11 @@ function printSelectedTransaction() {
   let body = `<div class="empty-state">Transaction not found.</div>`;
   let title = 'Selected Transaction';
   if (info.scope === 'narcotic') {
-    const row = getNarcoticTransactionById(info.id);
+    const row = getMergedNarcoticMovementRows(getArchiveMode('narcoticMovements')).find(item => String(item.id) === String(info.id));
     body = buildNarcoticTransactionDetails(row);
     title = 'Narcotic Transaction';
   } else {
-    const row = getNormalTransactionById(info.id);
+    const row = getMergedTransactionRows(getArchiveMode('transactions')).find(item => String(item.id) === String(info.id));
     body = buildNormalTransactionDetails(row);
     title = 'Transaction';
   }
@@ -5463,10 +5381,10 @@ function openTransactionDetails(scope, id) {
   let body = `<div class="empty-state">Transaction not found.</div>`;
   APP.currentTransactionDetail = { scope, id };
   if (scope === "narcotic") {
-    const row = getNarcoticTransactionById(id);
+    const row = getMergedNarcoticMovementRows(getArchiveMode('narcoticMovements')).find(item => String(item.id) === String(id));
     body = buildNarcoticTransactionDetails(row);
   } else {
-    const row = getNormalTransactionById(id);
+    const row = getMergedTransactionRows(getArchiveMode('transactions')).find(item => String(item.id) === String(id));
     body = buildNormalTransactionDetails(row);
   }
   q("transactionDetailsBody").innerHTML = body;
@@ -5615,6 +5533,9 @@ function renderNarcoticInternalStockTable() {
 }
 function renderNarcoticTransactionsTable() {
   if (!q("narcoticTransactionsTbody")) return;
+  ensureArchiveCacheForSection('narcoticMovements');
+  const shell = q("narcoticTransactionsTbody")?.closest('.table-shell') || q("narcoticTransactionsTbody")?.parentElement;
+  if (shell) mountArchiveToggle(shell, 'narcoticMovements', { prepend: true, panelId: 'narcoticTransactionsArchiveTogglePanel' });
   const rows = getFilteredNarcoticTransactionsRows();
   q("narcoticTransactionsTbody").innerHTML = rows.map(row => `
     <tr>
@@ -5628,7 +5549,7 @@ function renderNarcoticTransactionsTable() {
       <td>${esc(row.performedBy || "-")}</td>
       <td>${esc(row.nurseName || "-")}</td>
       <td>${esc(row.notes || "-")}</td>
-      <td><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">${row.__archived ? archivedBadge() : ""}<button class="soft-btn mini-btn transaction-details-btn" data-scope="narcotic" data-id="${esc(row.id)}">Details</button></div></td>
+      <td><button class="soft-btn mini-btn transaction-details-btn" data-scope="narcotic" data-id="${esc(row.id)}">Details${isArchivedRow(row) ? ' · Archived' : ''}</button></td>
     </tr>
   `).join("") || `<tr><td colspan="11" class="empty-state">No narcotic transactions found for the selected criteria.</td></tr>`;
 }
@@ -5660,7 +5581,6 @@ function renderNarcoticPage() {
   renderNarcoticManageDrugsTable();
   renderNarcoticInternalStockTable();
   renderNarcoticTransactionsTable();
-  ensureArchiveToggleBar("narcoticPrescriptions", q("narcoticRecentTbody")?.closest(".table-shell") || q("narcoticRecentTbody"), renderNarcoticRecent);
   updateNarcoticAvailableStock();
   updateNarcoticReportPreview();
   if (APP.narcoticOpenDepartmentId) {
@@ -6343,8 +6263,8 @@ function renderNarcoticRecentRows() {
   const to = q("narcoticRecentTo")?.value || "";
   const effectiveFrom = from || (!to ? jordanDateKey() : "");
   const effectiveTo = to || (!from ? jordanDateKey() : "");
-  ensureArchiveToggleBar("narcoticPrescriptions", q("narcoticRecentModalTbody")?.closest(".table-shell") || q("narcoticRecentModalTbody"), renderNarcoticRecentRows);
-  const rows = getScopedNarcoticPrescriptionRows("narcoticPrescriptions").filter(row => {
+  ensureArchiveCacheForSection('narcoticPrescriptions');
+  const rows = getMergedNarcoticPrescriptionRows(getArchiveMode('narcoticPrescriptions')).filter(row => {
     const day = formatJordanDateTime(row.dateTime).slice(0, 10);
     if (effectiveFrom && day < effectiveFrom) return false;
     if (effectiveTo && day > effectiveTo) return false;
@@ -6361,7 +6281,7 @@ function renderNarcoticRecentRows() {
       <td>${Number(row.dispensedUnits || 0)}</td>
       <td>${esc(row.discardDose || "-")}</td>
       <td>${esc(row.pharmacist || "")}</td>
-      <td>${row.__archived ? archivedBadge() : narcoticActionMenu(row)}</td>
+      <td>${isArchivedRow(row) ? '<span class="badge pending">Archived</span>' : narcoticActionMenu(row)}</td>
     </tr>`;
   }).join("") || `<tr><td colspan="8" class="empty-state">No narcotic prescriptions found.</td></tr>`;
 }
@@ -6714,10 +6634,11 @@ q("logoutBtn").onclick = () => {
   APP.currentRole = null;
   APP.currentUser = null;
   APP.currentUserDocId = null;
-  APP.archiveCache = createArchiveCacheState();
   APP.currentPortal = null;
   APP.currentPharmacyScope = null;
   APP.loginMethod = null;
+  APP.archiveView = { dashboard: "all", patients: "all", prescriptions: "all", transactions: "all", narcoticPrescriptions: "all", narcoticMovements: "all" };
+  APP.archiveCache = { prescriptions: { rows: [], loaded: false, loading: null }, transactions: { rows: [], loaded: false, loading: null }, narcoticPrescriptions: { rows: [], loaded: false, loading: null }, narcoticOrderMovements: { rows: [], loaded: false, loading: null } };
   q("appShell").classList.add("hidden");
   q("loginScreen").classList.remove("hidden");
   updateLayoutMode();
@@ -6900,13 +6821,11 @@ if (q("narcoticTransactionsTodayBtn")) q("narcoticTransactionsTodayBtn").onclick
   q("narcoticTransactionsFrom").value = today;
   q("narcoticTransactionsTo").value = today;
   renderNarcoticTransactionsTable();
-  ensureArchiveToggleBar("narcoticPrescriptions", q("narcoticRecentTbody")?.closest(".table-shell") || q("narcoticRecentTbody"), renderNarcoticRecent);
 };
 if (q("narcoticTransactionsClearBtn")) q("narcoticTransactionsClearBtn").onclick = () => {
   q("narcoticTransactionsFrom").value = "";
   q("narcoticTransactionsTo").value = "";
   renderNarcoticTransactionsTable();
-  ensureArchiveToggleBar("narcoticPrescriptions", q("narcoticRecentTbody")?.closest(".table-shell") || q("narcoticRecentTbody"), renderNarcoticRecent);
 };
 document.addEventListener("click", event => {
   const detailBtn = event.target.closest(".transaction-details-btn");
