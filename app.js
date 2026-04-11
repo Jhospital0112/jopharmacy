@@ -1910,7 +1910,8 @@ function txQtyText(boxes, units, unitWord = "unit(s)") {
 }
 
 function isCancelledTransaction(row) {
-  return !!row?.cancelled || String(row?.status || '').toLowerCase() === 'cancelled';
+  const note = String(row?.note || '').toLowerCase();
+  return note.includes('cancelled by') || note.includes('transaction cancelled');
 }
 
 function getTransactionBatchRows(row, includeArchived = false) {
@@ -1925,9 +1926,14 @@ function getTransactionBatchRows(row, includeArchived = false) {
 
 function buildCancelledTransactionNote(row) {
   if (!isCancelledTransaction(row)) return '';
-  const cancelledBy = row.cancelledBy || row.updatedBy || '-';
-  const cancelledAt = row.cancelledAt || row.updatedAt || row.dateTime || '';
-  return `Cancelled by ${cancelledBy}${cancelledAt ? ` • ${formatJordanDateTime(cancelledAt)}` : ''}`;
+  const note = String(row?.note || '').trim();
+  const match = note.match(/Cancelled by\s+(.+?)\s+on\s+(.+)$/i) || note.match(/Cancelled by\s+(.+)$/i);
+  if (match) {
+    const who = (match[1] || '-').trim();
+    const when = (match[2] || '').trim();
+    return `Cancelled by ${who}${when ? ` • ${when}` : ''}`;
+  }
+  return 'Transaction cancelled';
 }
 
 function canCancelTransactionRow(row) {
@@ -5491,7 +5497,7 @@ async function performCancelTransaction(id, pharmacistName) {
       const existingNote = String(row.note || '').trim();
       const cancelNote = `Cancelled by ${pharmacistName} on ${formatJordanDateTime(cancelledAt)}`;
       const nextNote = existingNote ? `${existingNote} | ${cancelNote}` : cancelNote;
-      operations.push({ type: 'update', table: 'transactions', id: row.id, data: { cancelled: true, status: 'Cancelled', cancelledBy: pharmacistName, cancelledAt, updatedBy: pharmacistName, updatedAt: cancelledAt, note: nextNote } });
+      operations.push({ type: 'update', table: 'transactions', id: row.id, data: { note: nextNote } });
     }
 
     await applyOperations(operations);
