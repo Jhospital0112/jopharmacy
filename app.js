@@ -14,7 +14,7 @@ const SUPABASE_ANON_KEY =
 const ARCHIVE_WEBAPP_URL =
   window.CDMS_CONFIG?.ARCHIVE_WEBAPP_URL ||
   window.APP_CONFIG?.ARCHIVE_WEBAPP_URL ||
-  "https://script.google.com/macros/s/AKfycbwHa4ZusGfQaxc21SIL1o6F92UKrnHEVay6HvmXe8rltLAQj_OgTIOPbcw-gQiFsyAf9w/exec";
+  "https://script.google.com/macros/s/AKfycbyvPHtWmV8jdipg07Kg1HZ8HwpGleWX7jtpI-iRby3VbzCfkwRWoBLccqV_rn2G19dmDg/exec";
 
 const ARCHIVE_SECRET = "779911";
 
@@ -2066,7 +2066,7 @@ function buildNormalTransactionPrintSection(type, rows) {
           <td>${txQtyText(row.qtyBoxes, row.qtyUnits)}</td>
         </tr>
         <tr class="tx-meta-row">
-          <td colspan="5"><strong>Received by:</strong> ${esc(row.receivedBy || row.performedBy || "-")} &nbsp; | &nbsp; <strong>Date & Time:</strong> ${esc(formatJordanDateTime(row.receivedDateTime || row.dateTime || ""))}${row.status === "Cancelled" ? ` &nbsp; | &nbsp; <strong>Cancelled by:</strong> ${esc(row.cancelledBy || "-")} &nbsp; | &nbsp; <strong>Cancelled At:</strong> ${esc(formatJordanDateTime(row.cancelledDateTime || ""))}` : ""}</td>
+          <td colspan="5"><strong>Received by:</strong> ${esc(row.receivedBy || row.performedBy || "-")} &nbsp; | &nbsp; <strong>Date & Time:</strong> ${esc(formatJordanDateTime(row.receivedDateTime || row.dateTime || ""))}${row.status === "Cancelled" ? ` &nbsp; | &nbsp; <strong>Note:</strong> ${esc(row.note || "Cancelled Transaction")}` : ""}</td>
         </tr>
       `).join(""),
       "No shipment receipt transactions found."
@@ -2084,7 +2084,7 @@ function buildNormalTransactionPrintSection(type, rows) {
           <td>${txQtyText(row.qtyBoxes, row.qtyUnits)}</td>
         </tr>
         <tr class="tx-meta-row">
-          <td colspan="4"><strong>Transferred by:</strong> ${esc(row.performedBy || "-")} &nbsp; | &nbsp; <strong>Received by:</strong> ${esc(row.receiverPharmacist || "-")} &nbsp; | &nbsp; <strong>Date & Time:</strong> ${esc(formatJordanDateTime(row.transferredDateTime || row.dateTime || ""))}${row.status === "Cancelled" ? ` &nbsp; | &nbsp; <strong>Cancelled by:</strong> ${esc(row.cancelledBy || "-")} &nbsp; | &nbsp; <strong>Cancelled At:</strong> ${esc(formatJordanDateTime(row.cancelledDateTime || ""))}` : ""}</td>
+          <td colspan="4"><strong>Transferred by:</strong> ${esc(row.performedBy || "-")} &nbsp; | &nbsp; <strong>Received by:</strong> ${esc(row.receiverPharmacist || "-")} &nbsp; | &nbsp; <strong>Date & Time:</strong> ${esc(formatJordanDateTime(row.transferredDateTime || row.dateTime || ""))}${row.status === "Cancelled" ? ` &nbsp; | &nbsp; <strong>Note:</strong> ${esc(row.note || "Cancelled Transaction")}` : ""}</td>
         </tr>
       `).join(""),
       "No stock transfer transactions found.",
@@ -5456,9 +5456,7 @@ async function cancelTransactionConfirmed(action, pharmacistName) {
         id: row.id,
         data: {
           status: "Cancelled",
-          cancelledBy: pharmacistName,
-          cancelledDateTime: cancelledAt,
-          note: `${row.note ? row.note + " | " : ""}This transaction has been cancelled`
+          note: `${row.note ? row.note + " | " : ""}Cancelled Transaction | Cancelled by: ${pharmacistName} | Cancelled at: ${formatJordanDateTime(cancelledAt, true)}`
         }
       });
     }
@@ -7085,6 +7083,5 @@ window.archiveOldDataNow = archiveOldDataNow;
 window.refreshCrossUserSyncNow = refreshCrossUserSyncNow;
 window.runAutomaticArchiveIfDue = runAutomaticArchiveIfDue;
 window.loadArchiveStatus = loadArchiveStatus;
-window.openCancelTransactionModal = openCancelTransactionModal;
 
 updateLayoutMode();
