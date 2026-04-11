@@ -14,7 +14,7 @@ const SUPABASE_ANON_KEY =
 const ARCHIVE_WEBAPP_URL =
   window.CDMS_CONFIG?.ARCHIVE_WEBAPP_URL ||
   window.APP_CONFIG?.ARCHIVE_WEBAPP_URL ||
-  "https://script.google.com/macros/s/AKfycbx_N4UibI9dZcdb8_aoGt0DLhXCbVISNkZV2ZuD0E8SqsNU_5ndodVdYoG0Cd3n3byb3g/exec";
+  "https://script.google.com/macros/s/AKfycbzTlKSu0KvBBRghek4evbgsDVL0GIOnTct3MJ53F3Nv8HqK1RM9gHp94f-JgWWpi5XHcw/exec";
 
 const ARCHIVE_SECRET = "779911";
 
@@ -1958,7 +1958,7 @@ function txTableSection(title, columns, rowsHtml, emptyText, signatures = "") {
 
 function buildNormalTransactionPrintSection(type, rows) {
   const safeRows = Array.isArray(rows) ? rows.filter(Boolean) : [];
-  const cancelledBanner = safeRows.some(row => row.status === "Cancelled")
+  const cancelledBanner = safeRows.some(row => transactionIsCancelled(row))
     ? `<div style="margin:0 0 10px 0;padding:10px 12px;border:2px solid #b91c1c;border-radius:10px;background:#fee2e2;color:#991b1b;font-weight:900">
          ⚠️ Cancelled Transaction
        </div>`
@@ -2066,7 +2066,7 @@ function buildNormalTransactionPrintSection(type, rows) {
           <td>${txQtyText(row.qtyBoxes, row.qtyUnits)}</td>
         </tr>
         <tr class="tx-meta-row">
-          <td colspan="5"><strong>Received by:</strong> ${esc(row.receivedBy || row.performedBy || "-")} &nbsp; | &nbsp; <strong>Date & Time:</strong> ${esc(formatJordanDateTime(row.receivedDateTime || row.dateTime || ""))}${row.status === "Cancelled" ? ` &nbsp; | &nbsp; <strong>Note:</strong> ${esc(row.note || "Cancelled Transaction")}` : ""}</td>
+          <td colspan="5"><strong>Received by:</strong> ${esc(row.receivedBy || row.performedBy || "-")} &nbsp; | &nbsp; <strong>Date & Time:</strong> ${esc(formatJordanDateTime(row.receivedDateTime || row.dateTime || ""))}${transactionIsCancelled(row) ? ` &nbsp; | &nbsp; <strong>Note:</strong> ${esc(row.note || "Cancelled Transaction")}` : ""}</td>
         </tr>
       `).join(""),
       "No shipment receipt transactions found."
@@ -2084,7 +2084,7 @@ function buildNormalTransactionPrintSection(type, rows) {
           <td>${txQtyText(row.qtyBoxes, row.qtyUnits)}</td>
         </tr>
         <tr class="tx-meta-row">
-          <td colspan="4"><strong>Transferred by:</strong> ${esc(row.performedBy || "-")} &nbsp; | &nbsp; <strong>Received by:</strong> ${esc(row.receiverPharmacist || "-")} &nbsp; | &nbsp; <strong>Date & Time:</strong> ${esc(formatJordanDateTime(row.transferredDateTime || row.dateTime || ""))}${row.status === "Cancelled" ? ` &nbsp; | &nbsp; <strong>Note:</strong> ${esc(row.note || "Cancelled Transaction")}` : ""}</td>
+          <td colspan="4"><strong>Transferred by:</strong> ${esc(row.performedBy || "-")} &nbsp; | &nbsp; <strong>Received by:</strong> ${esc(row.receiverPharmacist || "-")} &nbsp; | &nbsp; <strong>Date & Time:</strong> ${esc(formatJordanDateTime(row.transferredDateTime || row.dateTime || ""))}${transactionIsCancelled(row) ? ` &nbsp; | &nbsp; <strong>Note:</strong> ${esc(row.note || "Cancelled Transaction")}` : ""}</td>
         </tr>
       `).join(""),
       "No stock transfer transactions found.",
@@ -5319,11 +5319,17 @@ function ensureTransactionDetailsModal() {
 function detailLine(label, value) {
   return `<div class="tx-detail-row"><strong>${esc(label)}:</strong> <span>${value}</span></div>`;
 }
+
+function transactionIsCancelled(row) {
+  const note = String(row?.note || "");
+  return /cancelled transaction/i.test(note);
+}
+
 function canCancelTransactionRow(row) {
   return !!row &&
     APP.currentRole === "ADMIN" &&
     !isArchivedRow(row) &&
-    row.status !== "Cancelled" &&
+    !transactionIsCancelled(row) &&
     ["Receive Shipment", "Transfer"].includes(String(row.type || ""));
 }
 function openCancelTransactionModal() {
@@ -5374,7 +5380,7 @@ async function cancelTransactionConfirmed(action, pharmacistName) {
     return;
   }
 
-  if (rows.some(r => r.status === "Cancelled")) {
+  if (rows.some(r => transactionIsCancelled(r))) {
     closeModal("confirmActionModal");
     APP.confirmAction = null;
     showActionModal("Cancel Transaction", "This transaction is already cancelled.", false);
@@ -5455,7 +5461,6 @@ async function cancelTransactionConfirmed(action, pharmacistName) {
         table: "transactions",
         id: row.id,
         data: {
-          status: "Cancelled",
           note: `${row.note ? row.note + " | " : ""}Cancelled Transaction | Cancelled by: ${pharmacistName} | Cancelled at: ${formatJordanDateTime(cancelledAt, true)}`
         }
       });
