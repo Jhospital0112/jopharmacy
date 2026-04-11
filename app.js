@@ -14,7 +14,7 @@ const SUPABASE_ANON_KEY =
 const ARCHIVE_WEBAPP_URL =
   window.CDMS_CONFIG?.ARCHIVE_WEBAPP_URL ||
   window.APP_CONFIG?.ARCHIVE_WEBAPP_URL ||
-  "https://script.google.com/macros/s/AKfycbzSYcTwALqqw5NLEuMs2VrlWaMsV8trV2D5Wa2AnY3VgevmwteTekKlphiqVvRADYL95A/exec";
+  "https://script.google.com/macros/s/AKfycbxAhb73iw8VB-W4AtaficgFGXH5WIiVi0CZSv7MPoK03ODQlN6IEUUf22daoXeI4zlY/exec";
 
 const ARCHIVE_SECRET = "779911";
 
@@ -1958,6 +1958,11 @@ function txTableSection(title, columns, rowsHtml, emptyText, signatures = "") {
 
 function buildNormalTransactionPrintSection(type, rows) {
   const safeRows = Array.isArray(rows) ? rows.filter(Boolean) : [];
+  const cancelledBanner = safeRows.some(row => row.status === "Cancelled")
+    ? `<div style="margin:0 0 10px 0;padding:10px 12px;border:2px solid #b91c1c;border-radius:10px;background:#fee2e2;color:#991b1b;font-weight:900">
+         ⚠️ Cancelled Transaction
+       </div>`
+    : "";
   if (type === "register") {
     return txTableSection(
       "Register / Dispense",
@@ -2049,7 +2054,7 @@ function buildNormalTransactionPrintSection(type, rows) {
     );
   }
   if (type == "shipment") {
-    return txTableSection(
+    return `${cancelledBanner}${txTableSection(
       "Receive Shipment",
       ["Pharmacy", "Drug", "Invoice Number", "Invoice Date", "Received Quantity"],
       safeRows.map(row => `
@@ -2061,14 +2066,14 @@ function buildNormalTransactionPrintSection(type, rows) {
           <td>${txQtyText(row.qtyBoxes, row.qtyUnits)}</td>
         </tr>
         <tr class="tx-meta-row">
-          <td colspan="5"><strong>Received by:</strong> ${esc(row.receivedBy || row.performedBy || "-")} &nbsp; | &nbsp; <strong>Date & Time:</strong> ${esc(formatJordanDateTime(row.receivedDateTime || row.dateTime || ""))}</td>
+          <td colspan="5"><strong>Received by:</strong> ${esc(row.receivedBy || row.performedBy || "-")} &nbsp; | &nbsp; <strong>Date & Time:</strong> ${esc(formatJordanDateTime(row.receivedDateTime || row.dateTime || ""))}${row.status === "Cancelled" ? ` &nbsp; | &nbsp; <strong>Cancelled by:</strong> ${esc(row.cancelledBy || "-")} &nbsp; | &nbsp; <strong>Cancelled At:</strong> ${esc(formatJordanDateTime(row.cancelledDateTime || ""))}` : ""}</td>
         </tr>
       `).join(""),
       "No shipment receipt transactions found."
-    );
+    )}`;
   }
   if (type == "transfer") {
-    return txTableSection(
+    return `${cancelledBanner}${txTableSection(
       "Transfer",
       ["From Pharmacy", "To Pharmacy", "Drug", "Transferred Quantity"],
       safeRows.map(row => `
@@ -2079,12 +2084,12 @@ function buildNormalTransactionPrintSection(type, rows) {
           <td>${txQtyText(row.qtyBoxes, row.qtyUnits)}</td>
         </tr>
         <tr class="tx-meta-row">
-          <td colspan="4"><strong>Transferred by:</strong> ${esc(row.performedBy || "-")} &nbsp; | &nbsp; <strong>Received by:</strong> ${esc(row.receiverPharmacist || "-")} &nbsp; | &nbsp; <strong>Date & Time:</strong> ${esc(formatJordanDateTime(row.transferredDateTime || row.dateTime || ""))}</td>
+          <td colspan="4"><strong>Transferred by:</strong> ${esc(row.performedBy || "-")} &nbsp; | &nbsp; <strong>Received by:</strong> ${esc(row.receiverPharmacist || "-")} &nbsp; | &nbsp; <strong>Date & Time:</strong> ${esc(formatJordanDateTime(row.transferredDateTime || row.dateTime || ""))}${row.status === "Cancelled" ? ` &nbsp; | &nbsp; <strong>Cancelled by:</strong> ${esc(row.cancelledBy || "-")} &nbsp; | &nbsp; <strong>Cancelled At:</strong> ${esc(formatJordanDateTime(row.cancelledDateTime || ""))}` : ""}</td>
         </tr>
       `).join(""),
       "No stock transfer transactions found.",
       txSignatureBlock("Transferred By Signature", safeRows[0]?.performedBy || "-", "Received By Signature", safeRows[0]?.receiverPharmacist || "-")
-    );
+    )}`;
   }
   return "";
 }
@@ -2767,6 +2772,9 @@ async function submitConfirmedAction() {
     showActionModal("Validation", "Please select the pharmacist who performed this action.", false);
     q("actionOkBtn").classList.remove("hidden");
     return;
+  }
+  if (action.type === "cancel_transaction") {
+    return cancelTransactionConfirmed(action, pharmacistName);
   }
   if (action.scope === "narcotic") {
     closeModal("confirmActionModal");
@@ -5311,6 +5319,167 @@ function ensureTransactionDetailsModal() {
 function detailLine(label, value) {
   return `<div class="tx-detail-row"><strong>${esc(label)}:</strong> <span>${value}</span></div>`;
 }
+function canCancelTransactionRow(row) {
+  return !!row &&
+    APP.currentRole === "ADMIN" &&
+    !isArchivedRow(row) &&
+    row.status !== "Cancelled" &&
+    ["Receive Shipment", "Transfer"].includes(String(row.type || ""));
+}
+function openCancelTransactionModal() {
+  const info = APP.currentTransactionDetail;
+  if (!info || info.scope === "narcotic") return;
+
+  const row = getMergedTransactionRows(getArchiveMode("transactions")).find(item => String(item.id) === String(info.id));
+  if (!row) return;
+
+  if (!canCancelTransactionRow(row)) {
+    showActionModal("Cancel Transaction", "Delete is only available for active Receive Shipment and Transfer transactions.", false);
+    q("actionOkBtn").classList.remove("hidden");
+    return;
+  }
+
+  APP.confirmAction = {
+    type: "cancel_transaction",
+    id: row.id,
+    batchId: row.batchId || "",
+    transactionType: row.type
+  };
+
+  q("confirmActionTitle").textContent = "Cancel Transaction";
+  q("confirmActionText").textContent = row.type === "Receive Shipment"
+    ? "Please confirm cancelling this shipment transaction. The received quantity will be deducted from stock."
+    : "Please confirm cancelling this transfer transaction. Stock will be returned to the origin pharmacy and deducted from the destination pharmacy.";
+  applyCurrentUserReadonlyFields();
+  if (q("confirmActionPharmacist")) q("confirmActionPharmacist").value = currentActorName();
+  if (q("confirmActionPharmacist")?.parentElement) q("confirmActionPharmacist").parentElement.classList.remove("hidden");
+  openModal("confirmActionModal");
+}
+async function cancelTransactionConfirmed(action, pharmacistName) {
+  const sourceRow = getMergedTransactionRows(getArchiveMode("transactions")).find(item => String(item.id) === String(action.id));
+  if (!sourceRow) {
+    closeModal("confirmActionModal");
+    APP.confirmAction = null;
+    showActionModal("Cancel Transaction", "Transaction not found.", false);
+    q("actionOkBtn").classList.remove("hidden");
+    return;
+  }
+
+  const rows = (APP.cache.transactions || []).filter(r => (action.batchId && r.batchId === action.batchId) || String(r.id) === String(action.id));
+  if (!rows.length) {
+    closeModal("confirmActionModal");
+    APP.confirmAction = null;
+    showActionModal("Cancel Transaction", "Transaction rows not found.", false);
+    q("actionOkBtn").classList.remove("hidden");
+    return;
+  }
+
+  if (rows.some(r => r.status === "Cancelled")) {
+    closeModal("confirmActionModal");
+    APP.confirmAction = null;
+    showActionModal("Cancel Transaction", "This transaction is already cancelled.", false);
+    q("actionOkBtn").classList.remove("hidden");
+    return;
+  }
+
+  closeModal("confirmActionModal");
+  showActionModal("Cancel Transaction", "Please wait while the transaction is being cancelled...");
+
+  try {
+    const operations = [];
+    const inventoryMap = new Map((APP.cache.inventory || []).map(row => [row.id, { ...row }]));
+    const cancelledAt = jordanNowIso();
+
+    for (const row of rows) {
+      const drug = APP.cache.drugs.find(d => d.id === row.drugId);
+      if (!drug) continue;
+
+      const unitsPerBox = Number(drug.unitsPerBox || 1);
+      const delta = Number(row.qtyBoxes || 0) * unitsPerBox + Number(row.qtyUnits || 0);
+
+      if (row.type === "Receive Shipment") {
+        const pharmacy = row.pharmacy;
+        const invId = `${row.drugId}__${String(pharmacy).replace(/\s+/g, "_")}`;
+        const inv = inventoryMap.get(invId) || invRow(row.drugId, pharmacy);
+        if (!inv) throw new Error(`Inventory row not found for ${drug.tradeName || "drug"} in ${pharmacy}.`);
+        if (delta > Number(inv.totalUnits || 0)) {
+          throw new Error(`Cannot cancel shipment because current stock in ${pharmacy} is less than the received quantity.`);
+        }
+        const updated = normalizeInventory(0, Number(inv.totalUnits || 0) - delta, unitsPerBox);
+        operations.push({
+          type: "update",
+          table: "inventory",
+          id: inv.id,
+          data: { boxes: updated.boxes, units: updated.units, totalUnits: updated.totalUnits, updatedAt: cancelledAt }
+        });
+        inventoryMap.set(inv.id, { ...inv, ...updated, updatedAt: cancelledAt });
+      }
+
+      if (row.type === "Transfer") {
+        const from = row.fromPharmacy;
+        const to = row.toPharmacy;
+        const fromId = `${row.drugId}__${String(from).replace(/\s+/g, "_")}`;
+        const toId = `${row.drugId}__${String(to).replace(/\s+/g, "_")}`;
+        const fromInv = inventoryMap.get(fromId) || invRow(row.drugId, from);
+        const toInv = inventoryMap.get(toId) || invRow(row.drugId, to);
+
+        if (!fromInv || !toInv) {
+          throw new Error(`Inventory rows are missing for transfer cancellation of ${drug.tradeName || "drug"}.`);
+        }
+        if (delta > Number(toInv.totalUnits || 0)) {
+          throw new Error(`Cannot cancel transfer because current stock in ${to} is less than the transferred quantity.`);
+        }
+
+        const updatedFrom = normalizeInventory(0, Number(fromInv.totalUnits || 0) + delta, unitsPerBox);
+        const updatedTo = normalizeInventory(0, Number(toInv.totalUnits || 0) - delta, unitsPerBox);
+
+        operations.push({
+          type: "update",
+          table: "inventory",
+          id: fromInv.id,
+          data: { boxes: updatedFrom.boxes, units: updatedFrom.units, totalUnits: updatedFrom.totalUnits, updatedAt: cancelledAt }
+        });
+        operations.push({
+          type: "update",
+          table: "inventory",
+          id: toInv.id,
+          data: { boxes: updatedTo.boxes, units: updatedTo.units, totalUnits: updatedTo.totalUnits, updatedAt: cancelledAt }
+        });
+
+        inventoryMap.set(fromInv.id, { ...fromInv, ...updatedFrom, updatedAt: cancelledAt });
+        inventoryMap.set(toInv.id, { ...toInv, ...updatedTo, updatedAt: cancelledAt });
+      }
+
+      operations.push({
+        type: "update",
+        table: "transactions",
+        id: row.id,
+        data: {
+          status: "Cancelled",
+          cancelledBy: pharmacistName,
+          cancelledDateTime: cancelledAt,
+          note: `${row.note ? row.note + " | " : ""}This transaction has been cancelled`
+        }
+      });
+    }
+
+    await applyOperations(operations);
+    APP.cache.inventory = [...inventoryMap.values()];
+    await refreshTablesImmediate(["inventory", "transactions"]);
+
+    const refreshed = getMergedTransactionRows(getArchiveMode("transactions")).find(item => String(item.id) === String(action.id));
+    if (refreshed && q("transactionDetailsBody")) {
+      q("transactionDetailsBody").innerHTML = buildNormalTransactionDetails(refreshed);
+    }
+
+    APP.confirmAction = null;
+    finishActionModal(true, "Transaction cancelled successfully.");
+  } catch (error) {
+    console.error("Cancel Transaction Error:", error);
+    APP.confirmAction = null;
+    finishActionModal(false, error?.message || "Failed to cancel transaction.");
+  }
+}
 function buildShipmentBatchDetails(rows) {
   const first = rows[0] || {};
   return `
@@ -5347,13 +5516,21 @@ function buildTransferBatchDetails(rows) {
 }
 function buildNormalTransactionDetails(row) {
   if (!row) return `<div class="empty-state">Transaction not found.</div>`;
+
+  const renderWithCancelButton = (content) => {
+    const cancelBtn = canCancelTransactionRow(row)
+      ? `<div style="margin-top:14px;display:flex;justify-content:flex-end"><button class="danger-btn" onclick="openCancelTransactionModal()">Delete</button></div>`
+      : "";
+    return `${content}${cancelBtn}`;
+  };
+
   if (row.type === "Receive Shipment") {
     const rows = (APP.cache.transactions || []).filter(r => (row.batchId && r.batchId === row.batchId) || r.id === row.id);
-    return buildNormalTransactionPrintSection("shipment", rows);
+    return renderWithCancelButton(buildNormalTransactionPrintSection("shipment", rows));
   }
   if (row.type === "Transfer") {
     const rows = (APP.cache.transactions || []).filter(r => (row.batchId && r.batchId === row.batchId) || r.id === row.id);
-    return buildNormalTransactionPrintSection("transfer", rows);
+    return renderWithCancelButton(buildNormalTransactionPrintSection("transfer", rows));
   }
   if (row.type === "Return") return buildNormalTransactionPrintSection("return", [row]);
   if (row.type === "Delete Prescription") return buildNormalTransactionPrintSection("delete", [row]);
