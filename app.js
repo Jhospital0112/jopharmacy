@@ -313,8 +313,6 @@ const APP = {
   archiveStatus: null,
   archiveView: { dashboard: "all", patients: "all", prescriptions: "all", transactions: "all", narcoticPrescriptions: "all", narcoticMovements: "all" },
   archiveCache: { prescriptions: { rows: [], loaded: false, loading: null }, transactions: { rows: [], loaded: false, loading: null }, narcoticPrescriptions: { rows: [], loaded: false, loading: null }, narcoticOrderMovements: { rows: [], loaded: false, loading: null } },
-  archiveEndpointFailed: false,
-  archiveEndpointFailureReason: "",
   optimisticRenderSuspended: false,
   optimisticDirtyTables: new Set(),
   cache: {
@@ -335,6 +333,7 @@ const APP = {
   }
 };
 
+const ARCHIVE_RUNTIME = { disabled: false, reason: '', warned: false };
 
 function canCurrentUserTransfer() {
   return APP.currentRole === "ADMIN" || !!APP.currentUser?.canTransfer;
@@ -937,38 +936,37 @@ function loadArchiveJsonp(sheetName, params = {}) {
 }
 
 async function loadArchiveBucket(bucket, { force = false } = {}) {
+  if (ARCHIVE_RUNTIME.disabled && !force) return [];
   const config = ARCHIVE_BUCKET_CONFIG[bucket];
   if (!config) return [];
   const cache = APP.archiveCache?.[config.cacheKey];
   if (!cache) return [];
   if (cache.loading) return cache.loading;
   if (cache.loaded && !force) return cache.rows || [];
-  if (APP.archiveEndpointFailed && !force) {
-    cache.rows = [];
-    cache.loaded = true;
-    return [];
-  }
 
   const pharmacyScope = APP.currentRole === 'ADMIN' ? '' : currentScopePharmacy();
   cache.loading = (async () => {
     try {
       const result = await loadArchiveJsonp(config.sheetName, { pharmacyScope });
       if (result?.success !== true) throw new Error(result?.error || `Archive request failed for ${config.sheetName}`);
-      APP.archiveEndpointFailed = false;
-      APP.archiveEndpointFailureReason = '';
       cache.rows = normalizeArchiveBucketRows(bucket, result.rows || []);
       cache.loaded = true;
       return cache.rows;
     } catch (error) {
-      const message = String(error?.message || error || '');
-      const endpointUnavailable = /Archive script load failed|timed out|Failed to fetch|NetworkError|Load failed/i.test(message);
-      if (endpointUnavailable) {
-        APP.archiveEndpointFailed = true;
-        APP.archiveEndpointFailureReason = message;
-      }
       console.error(`Archive bucket load failed: ${bucket}`, error);
       cache.rows = [];
-      cache.loaded = true;
+      cache.loaded = false;
+      ARCHIVE_RUNTIME.disabled = true;
+      ARCHIVE_RUNTIME.reason = String(error?.message || 'Archive unavailable');
+      if (!ARCHIVE_RUNTIME.warned) {
+        ARCHIVE_RUNTIME.warned = true;
+        setTimeout(() => {
+          try {
+            showActionModal('Archive Connection', 'Archive source is not reachable. Current data will continue to work, but archived data will not appear until the archive web app URL/deployment is fixed.', false);
+            q('actionOkBtn').classList.remove('hidden');
+          } catch (_) {}
+        }, 0);
+      }
       return [];
     } finally {
       cache.loading = null;
@@ -1341,6 +1339,18 @@ function currentReportPharmacy() {
 function scopedPrescriptionRowsByPharmacy(pharmacy) {
   if (pharmacy === "ALL_WORK_PHARMACIES") return APP.cache.prescriptions.filter(row => WORK_PHARMACIES.includes(row.pharmacy));
   return APP.cache.prescriptions.filter(row => row.pharmacy === pharmacy);
+}
+
+function reportPrescriptionRowsByPharmacy(pharmacy) {
+  const currentRows = pharmacy === "ALL_WORK_PHARMACIES"
+    ? (APP.cache.prescriptions || []).filter(row => WORK_PHARMACIES.includes(row.pharmacy))
+    : (APP.cache.prescriptions || []).filter(row => row.pharmacy === pharmacy);
+  const archivedRows = ARCHIVE_RUNTIME.disabled
+    ? []
+    : (pharmacy === "ALL_WORK_PHARMACIES"
+      ? archiveRowsFor('prescriptions').filter(row => WORK_PHARMACIES.includes(row.pharmacy))
+      : archiveRowsFor('prescriptions').filter(row => row.pharmacy === pharmacy));
+  return [...currentRows, ...archivedRows].sort((a, b) => String(b.dateTime || '').localeCompare(String(a.dateTime || '')));
 }
 
 function sortDrugsAlphabetically(drugs) {
@@ -1924,60 +1934,6 @@ function txQtyText(boxes, units, unitWord = "unit(s)") {
   return `${Number(boxes || 0)} box(es) + ${Number(units || 0)} ${unitWord}`;
 }
 
-function isCancelledTransaction(row) {
-  const note = String(row?.note || '').toLowerCase();
-  return note.includes('cancelled by') || note.includes('transaction cancelled');
-}
-
-function getTransactionBatchRows(row, includeArchived = false) {
-  if (!row) return [];
-  const baseRows = includeArchived ? getMergedTransactionRows(ARCHIVE_VIEW_MODES.ALL) : [...(APP.cache.transactions || [])];
-  return baseRows.filter(item => {
-    if (String(item.type || '') !== String(row.type || '')) return false;
-    if (row.batchId) return String(item.batchId || '') === String(row.batchId);
-    return String(item.id || '') === String(row.id || '');
-  });
-}
-
-function buildCancelledTransactionNote(row) {
-  if (!isCancelledTransaction(row)) return '';
-  const note = String(row?.note || '').trim();
-  const match = note.match(/Cancelled by\s+(.+?)\s+on\s+(.+)$/i) || note.match(/Cancelled by\s+(.+)$/i);
-  if (match) {
-    const who = (match[1] || '-').trim();
-    const when = (match[2] || '').trim();
-    return `Cancelled by ${who}${when ? ` • ${when}` : ''}`;
-  }
-  return 'Transaction cancelled';
-}
-
-function canCancelTransactionRow(row) {
-  if (!row || isArchivedRow(row) || isCancelledTransaction(row)) return false;
-  if (row.type === 'Receive Shipment') return APP.currentRole === 'ADMIN';
-  if (row.type === 'Transfer') return APP.currentRole === 'ADMIN' || canCurrentUserTransfer();
-  return false;
-}
-
-function appendCancellationMetaRow(row, colspan) {
-  if (!isCancelledTransaction(row)) return '';
-  return `
-        <tr class="tx-meta-row">
-          <td colspan="${colspan}"><strong>Cancellation:</strong> ${esc(buildCancelledTransactionNote(row))}</td>
-        </tr>`;
-}
-
-function appendTransactionNoteRow(row, colspan) {
-  const parts = [];
-  if (row?.note) parts.push(`<strong>Note:</strong> ${esc(row.note)}`);
-  const cancellation = buildCancelledTransactionNote(row);
-  if (cancellation) parts.push(`<strong>Cancellation:</strong> ${esc(cancellation)}`);
-  if (!parts.length) return '';
-  return `
-        <tr class="tx-meta-row">
-          <td colspan="${colspan}">${parts.join(' &nbsp; | &nbsp; ')}</td>
-        </tr>`;
-}
-
 function txSignatureBlock(leftLabel, leftName, rightLabel, rightName) {
   return `
     <div class="tx-signature-row">
@@ -2107,7 +2063,6 @@ function buildNormalTransactionPrintSection(type, rows) {
         <tr class="tx-meta-row">
           <td colspan="5"><strong>Received by:</strong> ${esc(row.receivedBy || row.performedBy || "-")} &nbsp; | &nbsp; <strong>Date & Time:</strong> ${esc(formatJordanDateTime(row.receivedDateTime || row.dateTime || ""))}</td>
         </tr>
-        ${appendTransactionNoteRow(row, 5)}
       `).join(""),
       "No shipment receipt transactions found."
     );
@@ -2126,7 +2081,6 @@ function buildNormalTransactionPrintSection(type, rows) {
         <tr class="tx-meta-row">
           <td colspan="4"><strong>Transferred by:</strong> ${esc(row.performedBy || "-")} &nbsp; | &nbsp; <strong>Received by:</strong> ${esc(row.receiverPharmacist || "-")} &nbsp; | &nbsp; <strong>Date & Time:</strong> ${esc(formatJordanDateTime(row.transferredDateTime || row.dateTime || ""))}</td>
         </tr>
-        ${appendTransactionNoteRow(row, 4)}
       `).join(""),
       "No stock transfer transactions found.",
       txSignatureBlock("Transferred By Signature", safeRows[0]?.performedBy || "-", "Received By Signature", safeRows[0]?.receiverPharmacist || "-")
@@ -2819,12 +2773,6 @@ async function submitConfirmedAction() {
     APP.confirmAction = null;
     if (action.type === "return") return performReturnNarcoticPrescription(action.id, pharmacistName);
     if (action.type === "delete") return performDeleteNarcoticPrescription(action.id, pharmacistName);
-    return;
-  }
-  if (action.scope === 'transaction') {
-    closeModal('confirmActionModal');
-    APP.confirmAction = null;
-    if (action.type === 'cancel_transaction') return performCancelTransaction(action.id, pharmacistName);
     return;
   }
   const { type, id } = action;
@@ -4820,15 +4768,13 @@ function buildPrintShell(title, subtitle, bodyHtml, options = {}) {
 }
 
 async function printDrugReport() {
-  await loadArchiveBucket('prescriptions');
   const from = q("reportFromDate").value;
   const to = q("reportToDate").value;
   const drugId = q("reportDrug").value;
   const pharmacy = currentReportPharmacy();
   const drug = APP.cache.drugs.find(d => d.id === drugId);
-  const allRows = getScopedPrescriptionRows(ARCHIVE_VIEW_MODES.ALL);
-  const rows = allRows
-    .filter(row => (pharmacy === "ALL_WORK_PHARMACIES" ? WORK_PHARMACIES.includes(row.pharmacy) : String(row.pharmacy) === String(pharmacy)))
+  await loadArchiveBucket('prescriptions');
+  const rows = reportPrescriptionRowsByPharmacy(pharmacy)
     .filter(row => (!from || formatJordanDateTime(row.dateTime).slice(0, 10) >= from) && (!to || formatJordanDateTime(row.dateTime).slice(0, 10) <= to) && (!drugId || row.drugId === drugId))
     .sort((a, b) => String(b.dateTime || "").localeCompare(String(a.dateTime || "")));
 
@@ -4850,7 +4796,7 @@ async function printDrugReport() {
               <td>${esc(row.pharmacistName || "")}</td>
             </tr>
             <tr>
-              <td colspan="7"><strong>Status:</strong> ${esc(row.status || "-")} &nbsp; | &nbsp; <strong>Prescription Type:</strong> ${esc(row.prescriptionType || "-")} &nbsp; | &nbsp; <strong>Source:</strong> ${isArchivedRow(row) ? 'Archived Data' : 'Current Data'} &nbsp; | &nbsp; <strong>Audit Details:</strong> ${row.status === "Returned" ? "-" : esc((row.auditBy || "") + (row.auditDateTime ? ` • ${formatJordanDateTime(row.auditDateTime)}` : ""))}</td>
+              <td colspan="7"><strong>Status:</strong> ${esc(row.status || "-")} &nbsp; | &nbsp; <strong>Prescription Type:</strong> ${esc(row.prescriptionType || "-")} &nbsp; | &nbsp; <strong>Audit Details:</strong> ${row.status === "Returned" ? "-" : esc((row.auditBy || "") + (row.auditDateTime ? ` • ${formatJordanDateTime(row.auditDateTime)}` : ""))}</td>
             </tr>
           `).join("") || `<tr><td colspan="7">No records found.</td></tr>`}
         </tbody>
@@ -4863,26 +4809,28 @@ async function printDrugReport() {
 }
 
 async function printComprehensiveReport() {
-  await loadArchiveBucket('prescriptions');
   const from = q("reportFromDate").value;
   const to = q("reportToDate").value;
   const pharmacy = currentReportPharmacy();
   const pharmacyLabel = pharmacy === "ALL_WORK_PHARMACIES" ? "All Pharmacies" : pharmacy;
-  const rows = getScopedPrescriptionRows(ARCHIVE_VIEW_MODES.ALL)
-    .filter(row => (pharmacy === "ALL_WORK_PHARMACIES" ? WORK_PHARMACIES.includes(row.pharmacy) : String(row.pharmacy) === String(pharmacy)))
+  await loadArchiveBucket('prescriptions');
+  const rows = reportPrescriptionRowsByPharmacy(pharmacy)
     .filter(row => (!from || formatJordanDateTime(row.dateTime).slice(0, 10) >= from) && (!to || formatJordanDateTime(row.dateTime).slice(0, 10) <= to))
-    .sort((a, b) => String(a.dateTime || "").localeCompare(String(b.dateTime || "")));
+    .sort((a, b) => String(a.tradeName || a.drugName || "").localeCompare(String(b.tradeName || b.drugName || "")) || String(a.dateTime || "").localeCompare(String(b.dateTime || "")));
 
-  const grouped = sortDrugsAlphabetically(APP.cache.drugs)
-    .map(drug => ({ drug, rows: rows.filter(row => String(row.drugId) === String(drug.id)) }))
-    .filter(group => group.rows.length);
+  const groups = sortDrugsAlphabetically(APP.cache.drugs).map(drug => ({
+    drug,
+    rows: rows.filter(row => row.drugId === drug.id)
+  })).filter(group => group.rows.length);
 
-  const body = grouped.map((group, index) => {
+  const body = groups.map((group, index) => {
     const totalBoxes = group.rows.reduce((sum, row) => sum + Number(row.qtyBoxes || 0), 0);
     const totalUnits = group.rows.reduce((sum, row) => sum + Number(row.qtyUnits || 0), 0);
-    return `<div class="group ${index ? 'page-break' : ''}">
-        <div class="section-title">${esc(`${group.drug.tradeName || ''} ${group.drug.strength || ''}`.trim())}</div>
-        <div class="sub"><strong>Scientific Name:</strong> ${esc(group.drug.scientificName || '-')} &nbsp; | &nbsp; <strong>Dosage Form:</strong> ${esc(group.drug.dosageForm || '-')} &nbsp; | &nbsp; <strong>Units / Box:</strong> ${Number(group.drug.unitsPerBox || 1)}</div>
+    return `
+      <div class="group ${index ? 'page-break' : ''}">
+        <div class="section-title">Comprehensive Prescription Report</div>
+        <div class="sub"><strong>Pharmacy:</strong> ${esc(pharmacyLabel)} &nbsp; | &nbsp; <strong>Drug:</strong> ${esc(`${group.drug.tradeName || ''} ${group.drug.strength || ''}`.trim())} &nbsp; | &nbsp; <strong>Date:</strong> ${esc(from || '-')} ${to ? `to ${esc(to)}` : ''}</div>
+        <div class="sub">${esc(group.drug.scientificName || '')} ${group.drug.dosageForm ? `· ${esc(group.drug.dosageForm)}` : ''}</div>
         <div class="section">
           <table>
             <thead><tr><th>Date & Time</th><th>Patient</th><th>File No.</th><th>Doctor</th><th>Pharmacist</th><th>Boxes</th><th>Units</th><th>Status</th></tr></thead>
@@ -4896,10 +4844,10 @@ async function printComprehensiveReport() {
                   <td>${esc(row.pharmacistName || '')}</td>
                   <td>${Number(row.qtyBoxes || 0)}</td>
                   <td>${Number(row.qtyUnits || 0)}</td>
-                  <td>${esc(row.status || '')}${isArchivedRow(row) ? ' · Archived' : ''}</td>
+                  <td>${esc(row.status || '')}</td>
                 </tr>
                 <tr>
-                  <td colspan="8"><strong>Prescription Type:</strong> ${esc(row.prescriptionType || '-')} &nbsp; | &nbsp; <strong>Source:</strong> ${isArchivedRow(row) ? 'Archived Data' : 'Current Data'} &nbsp; | &nbsp; <strong>Audit Details:</strong> ${row.status === 'Returned' ? '-' : esc((row.auditBy || '') + (row.auditDateTime ? ` • ${formatJordanDateTime(row.auditDateTime)}` : ''))}</td>
+                  <td colspan="8"><strong>Prescription Type:</strong> ${esc(row.prescriptionType || '-')} &nbsp; | &nbsp; <strong>Audit Details:</strong> ${row.status === 'Returned' ? '-' : esc((row.auditBy || '') + (row.auditDateTime ? ` • ${formatJordanDateTime(row.auditDateTime)}` : ''))}</td>
                 </tr>
               `).join('')}
             </tbody>
@@ -5352,7 +5300,6 @@ function ensureTransactionDetailsModal() {
         <div id="transactionDetailsBody" class="transaction-details-body"></div>
       </div>
       <div class="modal-actions">
-        <button id="transactionCancelBtn" class="soft-btn mini-danger-btn hidden">Delete</button>
         <button id="printSelectedTransactionBtn" class="primary-btn">Print Selected Transaction</button>
         <button class="soft-btn" data-close="transactionDetailsModal">Close</button>
       </div>
@@ -5401,11 +5348,11 @@ function buildTransferBatchDetails(rows) {
 function buildNormalTransactionDetails(row) {
   if (!row) return `<div class="empty-state">Transaction not found.</div>`;
   if (row.type === "Receive Shipment") {
-    const rows = getTransactionBatchRows(row, true);
+    const rows = (APP.cache.transactions || []).filter(r => (row.batchId && r.batchId === row.batchId) || r.id === row.id);
     return buildNormalTransactionPrintSection("shipment", rows);
   }
   if (row.type === "Transfer") {
-    const rows = getTransactionBatchRows(row, true);
+    const rows = (APP.cache.transactions || []).filter(r => (row.batchId && r.batchId === row.batchId) || r.id === row.id);
     return buildNormalTransactionPrintSection("transfer", rows);
   }
   if (row.type === "Return") return buildNormalTransactionPrintSection("return", [row]);
@@ -5437,97 +5384,6 @@ function buildNarcoticTransactionDetails(row) {
     ${detailLine("Notes", esc(row.notes || "-"))}
   </div>`;
 }
-function updateTransactionDetailsActions(row) {
-  const cancelBtn = q("transactionCancelBtn");
-  if (!cancelBtn) return;
-  const canCancel = canCancelTransactionRow(row);
-  cancelBtn.classList.toggle("hidden", !canCancel);
-  cancelBtn.onclick = canCancel ? () => openCancelTransactionModal(row.id) : null;
-}
-
-function openCancelTransactionModal(id) {
-  const row = (APP.cache.transactions || []).find(item => String(item.id) === String(id));
-  if (!canCancelTransactionRow(row)) return;
-  APP.confirmAction = { scope: 'transaction', type: 'cancel_transaction', id };
-  q('confirmActionTitle').textContent = row.type === 'Receive Shipment' ? 'Cancel Receive Shipment' : 'Cancel Transfer Stock';
-  q('confirmActionText').textContent = row.type === 'Receive Shipment'
-    ? 'Please confirm cancelling this received shipment. The received quantity will be removed from stock and the transaction will be marked as cancelled.'
-    : 'Please confirm cancelling this transfer. The quantity will be returned to the source pharmacy, removed from the destination pharmacy, and the transaction will be marked as cancelled.';
-  applyCurrentUserReadonlyFields();
-  if (q('confirmActionPharmacist')) q('confirmActionPharmacist').value = currentActorName();
-  if (q('confirmActionPharmacist')?.parentElement) q('confirmActionPharmacist').parentElement.classList.remove('hidden');
-  openModal('confirmActionModal');
-}
-
-async function performCancelTransaction(id, pharmacistName) {
-  const seedRow = (APP.cache.transactions || []).find(item => String(item.id) === String(id));
-  if (!seedRow) return;
-  const rows = getTransactionBatchRows(seedRow, false);
-  if (!rows.length) return;
-  if (rows.some(item => isCancelledTransaction(item))) {
-    showActionModal('Cancel Transaction', 'This transaction is already cancelled.', false);
-    q('actionOkBtn').classList.remove('hidden');
-    return;
-  }
-
-  showActionModal(seedRow.type === 'Receive Shipment' ? 'Cancel Receive Shipment' : 'Cancel Transfer Stock', 'Please wait while the transaction is being cancelled...');
-
-  try {
-    const operations = [];
-    const inventoryMap = new Map((APP.cache.inventory || []).map(row => [row.id, { ...row }]));
-    const cancelledAt = jordanNowIso();
-
-    for (const row of rows) {
-      const drug = APP.cache.drugs.find(d => String(d.id) === String(row.drugId));
-      if (!drug) continue;
-      const unitsPerBox = Number(drug.unitsPerBox || 1);
-      const delta = Number(row.qtyBoxes || 0) * unitsPerBox + Number(row.qtyUnits || 0);
-
-      if (row.type === 'Receive Shipment') {
-        const pharmacy = row.pharmacy || '';
-        const invId = `${row.drugId}__${String(pharmacy).replace(/\s+/g, '_')}`;
-        const inv = inventoryMap.get(invId) || invRow(row.drugId, pharmacy) || { id: invId, drugId: row.drugId, pharmacy, boxes: 0, units: 0, totalUnits: 0 };
-        if (delta > Number(inv.totalUnits || 0)) throw new Error(`Cannot cancel shipment for ${drug.tradeName || 'drug'} because current stock is lower than the received quantity in ${pharmacy}.`);
-        const updated = normalizeInventory(0, Number(inv.totalUnits || 0) - delta, unitsPerBox);
-        operations.push({ type: inventoryMap.has(invId) ? 'update' : 'set', table: 'inventory', id: invId, data: { ...inv, boxes: updated.boxes, units: updated.units, totalUnits: updated.totalUnits, updatedAt: cancelledAt } });
-        inventoryMap.set(invId, { ...inv, ...updated, updatedAt: cancelledAt });
-      }
-
-      if (row.type === 'Transfer') {
-        const fromPharmacy = row.fromPharmacy || String(row.pharmacy || '').split('→')[0]?.trim() || '';
-        const toPharmacy = row.toPharmacy || String(row.pharmacy || '').split('→')[1]?.trim() || '';
-        const fromId = `${row.drugId}__${String(fromPharmacy).replace(/\s+/g, '_')}`;
-        const toId = `${row.drugId}__${String(toPharmacy).replace(/\s+/g, '_')}`;
-        const fromInv = inventoryMap.get(fromId) || invRow(row.drugId, fromPharmacy) || { id: fromId, drugId: row.drugId, pharmacy: fromPharmacy, boxes: 0, units: 0, totalUnits: 0 };
-        const toInv = inventoryMap.get(toId) || invRow(row.drugId, toPharmacy) || { id: toId, drugId: row.drugId, pharmacy: toPharmacy, boxes: 0, units: 0, totalUnits: 0 };
-        if (delta > Number(toInv.totalUnits || 0)) throw new Error(`Cannot cancel transfer for ${drug.tradeName || 'drug'} because destination stock in ${toPharmacy} is lower than the transferred quantity.`);
-        const updatedFrom = normalizeInventory(0, Number(fromInv.totalUnits || 0) + delta, unitsPerBox);
-        const updatedTo = normalizeInventory(0, Number(toInv.totalUnits || 0) - delta, unitsPerBox);
-        operations.push({ type: inventoryMap.has(fromId) ? 'update' : 'set', table: 'inventory', id: fromId, data: { ...fromInv, boxes: updatedFrom.boxes, units: updatedFrom.units, totalUnits: updatedFrom.totalUnits, updatedAt: cancelledAt } });
-        operations.push({ type: inventoryMap.has(toId) ? 'update' : 'set', table: 'inventory', id: toId, data: { ...toInv, boxes: updatedTo.boxes, units: updatedTo.units, totalUnits: updatedTo.totalUnits, updatedAt: cancelledAt } });
-        inventoryMap.set(fromId, { ...fromInv, ...updatedFrom, updatedAt: cancelledAt });
-        inventoryMap.set(toId, { ...toInv, ...updatedTo, updatedAt: cancelledAt });
-      }
-
-      const existingNote = String(row.note || '').trim();
-      const cancelNote = `Cancelled by ${pharmacistName} on ${formatJordanDateTime(cancelledAt)}`;
-      const nextNote = existingNote ? `${existingNote} | ${cancelNote}` : cancelNote;
-      operations.push({ type: 'update', table: 'transactions', id: row.id, data: { note: nextNote } });
-    }
-
-    await applyOperations(operations);
-    APP.cache.inventory = [...inventoryMap.values()];
-    await refreshTablesImmediate(['inventory', 'transactions']);
-    finishActionModal(true, 'Transaction cancelled successfully.');
-    const currentId = APP.currentTransactionDetail?.id;
-    if (String(currentId || '') === String(id)) openTransactionDetails('normal', id);
-  } catch (error) {
-    console.error('Cancel Transaction Error:', error);
-    showActionModal('Cancel Transaction Error', error?.message || 'Failed to cancel transaction.', false);
-    q('actionOkBtn').classList.remove('hidden');
-  }
-}
-
 function printSelectedTransaction() {
   const info = APP.currentTransactionDetail;
   if (!info) return;
@@ -5559,7 +5415,6 @@ function openTransactionDetails(scope, id) {
     body = buildNormalTransactionDetails(row);
   }
   q("transactionDetailsBody").innerHTML = body;
-  updateTransactionDetailsActions(scope === "narcotic" ? null : (APP.cache.transactions || []).find(item => String(item.id) === String(id)));
   openModal("transactionDetailsModal");
 }
 async function receiveNarcoticInternalShipment() {
