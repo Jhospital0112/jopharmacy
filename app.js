@@ -14,7 +14,7 @@ const SUPABASE_ANON_KEY =
 const ARCHIVE_WEBAPP_URL =
   window.CDMS_CONFIG?.ARCHIVE_WEBAPP_URL ||
   window.APP_CONFIG?.ARCHIVE_WEBAPP_URL ||
-  "https://script.google.com/macros/s/AKfycbywKK4kH3PDT-TbddEw1Wtrd4NStyY5Xpk0BFWMrLOulOCQRHm10WB8TXbs6txeJYfPQw/exec";
+  "https://script.google.com/macros/s/AKfycbyxW--uKfL0SXkRi2uGN_xuH972cGKo6T3Mg7HGCJbcn4IyN-GP8BZVfkXBm7_ggZc8bQ/exec";
 
 const ARCHIVE_SECRET = "779911";
 
@@ -2424,7 +2424,7 @@ function renderDashboard() {
         </div>`;
     }).join("") || `<div class="empty-state">No medication cards match your search.</div>`;
 
-  const dashboardArchiveHost = q("recentList")?.parentElement;
+  const dashboardArchiveStatusHost = q("recentList")?.parentElement;
   if (dashboardArchiveHost) {
     let archivePanel = q("dashboardArchiveStatusPanel");
     if (!archivePanel) {
@@ -2432,7 +2432,7 @@ function renderDashboard() {
       archivePanel.id = "dashboardArchiveStatusPanel";
       archivePanel.className = "glass-card";
       archivePanel.style.marginBottom = "12px";
-      dashboardArchiveHost.insertBefore(archivePanel, q("recentList"));
+      dashboardArchiveStatusHost.insertBefore(archivePanel, q("recentList"));
     }
     archivePanel.innerHTML = `
       <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
