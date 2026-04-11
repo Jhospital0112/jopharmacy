@@ -14,7 +14,7 @@ const SUPABASE_ANON_KEY =
 const ARCHIVE_WEBAPP_URL =
   window.CDMS_CONFIG?.ARCHIVE_WEBAPP_URL ||
   window.APP_CONFIG?.ARCHIVE_WEBAPP_URL ||
-  "https://script.google.com/macros/s/AKfycbwa5gb8HKJ6hIWFgUVaIkOCI68a7YGld28E7yo9CZzqPxqpLa46D22BM8niNtqoJ9pyAw/exec";
+  "https://script.google.com/macros/s/AKfycbzsO9IUjGNTQ-RJNtAD_YYoTWlxi5BfFAW8QdXHyqGVUAbnUmPd_FkzH0BCQaAYtSETTg/exec";
 
 const ARCHIVE_SECRET = "779911";
 
