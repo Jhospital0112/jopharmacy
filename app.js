@@ -313,6 +313,8 @@ const APP = {
   archiveStatus: null,
   archiveView: { dashboard: "all", patients: "all", prescriptions: "all", transactions: "all", narcoticPrescriptions: "all", narcoticMovements: "all" },
   archiveCache: { prescriptions: { rows: [], loaded: false, loading: null }, transactions: { rows: [], loaded: false, loading: null }, narcoticPrescriptions: { rows: [], loaded: false, loading: null }, narcoticOrderMovements: { rows: [], loaded: false, loading: null } },
+  archiveEndpointFailed: false,
+  archiveEndpointFailureReason: "",
   optimisticRenderSuspended: false,
   optimisticDirtyTables: new Set(),
   cache: {
@@ -941,19 +943,32 @@ async function loadArchiveBucket(bucket, { force = false } = {}) {
   if (!cache) return [];
   if (cache.loading) return cache.loading;
   if (cache.loaded && !force) return cache.rows || [];
+  if (APP.archiveEndpointFailed && !force) {
+    cache.rows = [];
+    cache.loaded = true;
+    return [];
+  }
 
   const pharmacyScope = APP.currentRole === 'ADMIN' ? '' : currentScopePharmacy();
   cache.loading = (async () => {
     try {
       const result = await loadArchiveJsonp(config.sheetName, { pharmacyScope });
       if (result?.success !== true) throw new Error(result?.error || `Archive request failed for ${config.sheetName}`);
+      APP.archiveEndpointFailed = false;
+      APP.archiveEndpointFailureReason = '';
       cache.rows = normalizeArchiveBucketRows(bucket, result.rows || []);
       cache.loaded = true;
       return cache.rows;
     } catch (error) {
+      const message = String(error?.message || error || '');
+      const endpointUnavailable = /Archive script load failed|timed out|Failed to fetch|NetworkError|Load failed/i.test(message);
+      if (endpointUnavailable) {
+        APP.archiveEndpointFailed = true;
+        APP.archiveEndpointFailureReason = message;
+      }
       console.error(`Archive bucket load failed: ${bucket}`, error);
       cache.rows = [];
-      cache.loaded = false;
+      cache.loaded = true;
       return [];
     } finally {
       cache.loading = null;
