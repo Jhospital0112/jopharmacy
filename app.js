@@ -14,7 +14,7 @@ const SUPABASE_ANON_KEY =
 const ARCHIVE_WEBAPP_URL =
   window.CDMS_CONFIG?.ARCHIVE_WEBAPP_URL ||
   window.APP_CONFIG?.ARCHIVE_WEBAPP_URL ||
-  "https://script.google.com/macros/s/AKfycbyvPHtWmV8jdipg07Kg1HZ8HwpGleWX7jtpI-iRby3VbzCfkwRWoBLccqV_rn2G19dmDg/exec";
+  "https://script.google.com/macros/s/AKfycbx_N4UibI9dZcdb8_aoGt0DLhXCbVISNkZV2ZuD0E8SqsNU_5ndodVdYoG0Cd3n3byb3g/exec";
 
 const ARCHIVE_SECRET = "779911";
 
@@ -5517,7 +5517,7 @@ function buildNormalTransactionDetails(row) {
 
   const renderWithCancelButton = (content) => {
     const cancelBtn = canCancelTransactionRow(row)
-      ? `<div style="margin-top:14px;display:flex;justify-content:flex-end"><button class="danger-btn" onclick="openCancelTransactionModal()">Delete</button></div>`
+      ? `<div style="margin-top:14px;display:flex;justify-content:flex-end"><button type="button" class="danger-btn cancel-transaction-btn" data-open-cancel-transaction="true">Delete</button></div>`
       : "";
     return `${content}${cancelBtn}`;
   };
@@ -7031,7 +7031,16 @@ if (q("narcoticTransactionsClearBtn")) q("narcoticTransactionsClearBtn").onclick
 };
 document.addEventListener("click", event => {
   const detailBtn = event.target.closest(".transaction-details-btn");
-  if (detailBtn) openTransactionDetails(detailBtn.dataset.scope || "normal", detailBtn.dataset.id);
+  if (detailBtn) {
+    openTransactionDetails(detailBtn.dataset.scope || "normal", detailBtn.dataset.id);
+    return;
+  }
+
+  const cancelBtn = event.target.closest(".cancel-transaction-btn,[data-open-cancel-transaction='true']");
+  if (cancelBtn) {
+    openCancelTransactionModal();
+    return;
+  }
 });
 q("drugCardsPrevBtn").onclick = () => { APP.drugCardsPage = Math.max(1, APP.drugCardsPage - 1); renderDashboard(); };
 q("drugCardsNextBtn").onclick = () => { APP.drugCardsPage += 1; renderDashboard(); };
@@ -7085,3 +7094,9 @@ window.runAutomaticArchiveIfDue = runAutomaticArchiveIfDue;
 window.loadArchiveStatus = loadArchiveStatus;
 
 updateLayoutMode();
+
+
+// Expose key transaction actions for any existing inline HTML handlers.
+window.openTransactionDetails = openTransactionDetails;
+window.openCancelTransactionModal = openCancelTransactionModal;
+window.printSelectedTransaction = printSelectedTransaction;
